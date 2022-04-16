@@ -1,4 +1,7 @@
 import string
+import numpy as np
+
+from nerdle_solver.clues import CLUE_TYPES
 
 
 def apply_operator(operator, left, right):
@@ -67,3 +70,32 @@ def validate(tokens):
         return False
 
     return evaluate(tokens[:-2]) == result
+
+INDEX_TO_CHAR = np.array(list("0123456789+-*/="))
+CHAR_TO_INDEX = {INDEX_TO_CHAR[index]: index for index in range(len(INDEX_TO_CHAR))}
+INDEX_TO_CLUE = np.array(list(CLUE_TYPES))
+
+def eq_to_array(equation):
+    slots = len(equation)
+    array = np.zeros((slots), dtype=np.int32)
+    for x, char in enumerate(equation):
+        array[x] = CHAR_TO_INDEX[char]
+    return array
+
+def eqs_to_array(equations):
+    slots = len(equations[0])
+    array = np.zeros((len(equations), slots), dtype=np.int32)
+    for x, eq in enumerate(equations):
+        for y, char in enumerate(eq):
+            array[x,y] = CHAR_TO_INDEX[char]
+    return array
+
+def array_to_eqs(array):
+    return [
+        ''.join(INDEX_TO_CHAR[array[idx,:]]) for idx in range(array.shape[0])
+    ]
+
+def array_to_clues(array):
+    return [
+        ''.join(INDEX_TO_CLUE[array[idx,:]]) for idx in range(array.shape[0])
+    ]
