@@ -1,6 +1,3 @@
-import array
-import string
-
 CLUE_TYPES = 'gyb'
 GREEN = 0
 YELLOW = 1
