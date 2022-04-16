@@ -42,9 +42,9 @@ def recurse(stack, counts):
         if answer is not None and answer >= 0:
             # Log of 0 is undefined but as an int it is displayed with 1 digit
             answer_len = 1 if answer == 0 else math.floor(math.log10(answer) + 1)
-            if space_left == answer_len:
+            if space_left >= answer_len:
                 counts.valid += 1
-                text = f"{''.join(stack)}={answer}"
+                text = f"{''.join(stack)}={answer:0{space_left}}"
                 counts.answers.append(text)
 
 
