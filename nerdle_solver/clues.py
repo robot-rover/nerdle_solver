@@ -17,3 +17,33 @@ def generate_clue(secret, guess):
         if len(indexes) > 0:
             clue[indexes[0]] = YELLOW
     return ''.join(CLUE_TYPES[idx] for idx in clue)
+
+def filter_secrets(guess, clue, possible_secrets):
+    remaining_solutions = []
+    for possible_secret in possible_secrets:
+        valid = True
+        for index, element in enumerate(clue):
+            #check greens
+            if not valid:
+                break
+            if element == 'g':
+                if possible_secret[index] == guess[index]:
+                    continue
+                else:
+                    valid = False
+                    break
+            
+            #check blacks
+            if element == 'b':
+                for e in possible_secret:
+                    if e != guess[index]:
+                        continue
+                    else:
+                        valid = False
+                        break
+            
+        #check yellows
+        if valid and generate_clue(possible_secret, guess) == clue:
+            remaining_solutions.append(possible_secret)
+    
+    return remaining_solutions
