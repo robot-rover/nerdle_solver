@@ -5,6 +5,7 @@ import numpy as np
 from nerdle_solver.equation import array_to_clues, array_to_eqs, eqs_to_array
 
 from ..clues import generate_clue, generate_cluev
+from nerdle_cuda import generate_clue_gpu
 
 class TestClue(unittest.TestCase):
     def test(self):
@@ -37,6 +38,24 @@ class TestClue(unittest.TestCase):
         eq_array = eqs_to_array([case[0] for case in cases])
         guess_arr = eqs_to_array([guess]).squeeze()
         clues = generate_cluev(eq_array, guess_arr)
+        clues_str = array_to_clues(clues)
+        for idx, clue in enumerate(clues_str):
+            self.assertEqual(clue, cases[idx][1], cases[idx])
+
+    def test_clueg(self):
+        guess = '27+20=47'
+        cases = [
+            #Secret       Clue
+            ('000001=1', 'bbbbgybb'),
+            ('9/3-00=3', 'bbbbgybb'),
+            ('24+54=78', 'gygbbgyb'),
+            ('27+64=91', 'gggbbgyb'),
+            ('27+47=74', 'gggbbgyy'),
+            ('27+20=47', 'gggggggg'),
+        ]
+        eq_array = eqs_to_array([case[0] for case in cases])
+        guess_arr = eqs_to_array([guess]).squeeze()
+        clues = generate_clue_gpu(eq_array.astype(np.uint8), guess_arr.astype(np.uint8))
         clues_str = array_to_clues(clues)
         for idx, clue in enumerate(clues_str):
             self.assertEqual(clue, cases[idx][1], cases[idx])

@@ -65,7 +65,7 @@ def generate_cluev(secrets, guess, char_ord=15):
     slots = secrets.shape[1]
     # Initialize to Green
     clues = np.zeros_like(secrets)
-    not_green = (secrets != guess)
+    not_green = (secrets != guess).astype(np.uint8)
     clues += BLACK * not_green
 
     # Use +1 and loss of first column to not count chars that are green

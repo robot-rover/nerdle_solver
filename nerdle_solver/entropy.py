@@ -4,8 +4,8 @@ import numpy as np
 from nerdle_solver.clues import generate_cluev
 from nerdle_solver.equation import array_to_clues, eqs_to_array
 
-def expected_entropy(guess, possible_secrets):
-    clues_slots = generate_cluev(possible_secrets, guess)
+def expected_entropy(guess, possible_secrets, backend=generate_cluev):
+    clues_slots = backend(possible_secrets, guess)
 
     clues_summing_array = 3**(np.arange(len(guess)))
     clue_codes = np.sum(clues_slots * clues_summing_array[None,:], axis=1)

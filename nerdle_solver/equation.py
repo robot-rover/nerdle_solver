@@ -77,14 +77,14 @@ INDEX_TO_CLUE = np.array(list(CLUE_TYPES))
 
 def eq_to_array(equation):
     slots = len(equation)
-    array = np.zeros((slots), dtype=np.int32)
+    array = np.zeros((slots), dtype=np.uint8)
     for x, char in enumerate(equation):
         array[x] = CHAR_TO_INDEX[char]
     return array
 
 def eqs_to_array(equations):
     slots = len(equations[0])
-    array = np.zeros((len(equations), slots), dtype=np.int32)
+    array = np.zeros((len(equations), slots), dtype=np.uint8)
     for x, eq in enumerate(equations):
         for y, char in enumerate(eq):
             array[x,y] = CHAR_TO_INDEX[char]

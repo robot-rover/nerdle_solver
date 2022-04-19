@@ -2,7 +2,7 @@ import unittest
 
 from nerdle_solver.combinations import get_comb_list
 
-from ..entropy import filter_secrets
+from ..clues import filter_secrets
 
 
 
@@ -13,7 +13,7 @@ class TestFilter(unittest.TestCase):
         solution2 = [
             '12+30=42', '12+31=43', '12+32=44', '12+33=45', '12+34=46',
             '12+35=47', '12+36=48', '12+37=49', '12+38=50', '12+39=51'
-        ]  
+        ]
 
         cases = [
             # Guess       Clue        Solution
