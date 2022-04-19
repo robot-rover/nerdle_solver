@@ -6,3 +6,4 @@ __pycache__
 cuda/build/
 *.obj
 *.lib
+*.egg-info

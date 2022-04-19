@@ -6,7 +6,7 @@
 #define NUM_SLOTS 8
 
 extern double * myVectorAdd(double * h_A, double * h_B, int numElements);
-extern uint8_t *generate_clueg(uint8_t *secrets, uint8_t *guess, uint64_t num_batches);
+void generate_clueg(uint8_t *guess_eqs, uint32_t num_guess, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *clue_arr);
 
 static PyObject* helloworld(PyObject* self, PyObject* args) {
     // printf("Hello World\n");
@@ -69,9 +69,9 @@ static PyObject* vector_add(PyObject* self, PyObject* args) {
 }
 
 static PyObject* generate_clue_gpu(PyObject* self, PyObject* args) {
-    PyArrayObject *secrets, *guess;
+    PyArrayObject *secrets, *guesses, *clues;
 
-    if (!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &secrets, &PyArray_Type, &guess))
+    if (!PyArg_ParseTuple(args, "O!O!O!", &PyArray_Type, &secrets, &PyArray_Type, &guesses, &PyArray_Type, &clues))
         return NULL; // Python throws the correct error if ParseTuple fails
 
     if (secrets -> nd != 2 || secrets->descr->type_num != NPY_UINT8) {
@@ -79,23 +79,36 @@ static PyObject* generate_clue_gpu(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    if (guess -> nd != 1 || guess->descr->type_num != NPY_UINT8) {
-        PyErr_SetString(PyExc_ValueError, "guess must be 1 dimensional and of type uint8");
+    if (guesses -> nd != 2 || guesses->descr->type_num != NPY_UINT8) {
+        PyErr_SetString(PyExc_ValueError, "guesses must be 2 dimensional and of type uint8");
         return NULL;
     }
 
-    size_t guess_width = guess->dimensions[0];
-    size_t num_batches = secrets->dimensions[0];
-    size_t secrets_width = secrets->dimensions[1];
-
-    if (guess_width != NUM_SLOTS || secrets_width != NUM_SLOTS) {
-        PyErr_SetString(PyExc_ValueError, "arrays must have a width of NUM_SLOTS (8)");
+    if (clues -> nd != 3 || clues->descr->type_num != NPY_UINT8) {
+        PyErr_SetString(PyExc_ValueError, "clues must be 3 dimensional and of type uint8");
         return NULL;
     }
 
-    uint8_t *clues = generate_clueg(secrets->data, guess->data, num_batches);
+    size_t num_secrets = secrets->dimensions[0];
+    size_t num_guesses = guesses->dimensions[0];
+    size_t num_slots_s = secrets->dimensions[1];
+    size_t num_slots_g = guesses->dimensions[1];
+    size_t num_slots_c = clues->dimensions[2];
+    if (num_slots_s != NUM_SLOTS || num_slots_g != NUM_SLOTS || num_slots_c != NUM_SLOTS) {
+        PyErr_SetString(PyExc_ValueError, "arrays last dimension must be NUM_SLOTS (8)");
+        return NULL;
+    }
 
-    return PyArray_SimpleNewFromData(2, PyArray_DIMS(secrets), NPY_UINT8, clues);
+    if (num_secrets > clues->dimensions[0] || num_guesses > clues->dimensions[1]) {
+        PyErr_SetString(PyExc_ValueError, "clues array isn't big enough");
+        return NULL;
+    }
+
+
+
+    generate_clueg(secrets->data, num_secrets, guesses->data, num_guesses, clues->data);
+
+    return Py_None;
 }
 
 static PyMethodDef methods[] = {
