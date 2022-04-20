@@ -1,4 +1,6 @@
 import numpy as np
+from termcolor import colored
+
 
 CLUE_TYPES = 'gby'
 GREEN = 0
@@ -19,6 +21,19 @@ def generate_clue(secret, guess):
         if len(indexes) > 0:
             clue[indexes[0]] = YELLOW
     return ''.join(CLUE_TYPES[idx] for idx in clue)
+
+def print_color_guess(guess, clue):
+    for idx, letter in enumerate(clue):
+        if letter == 'g':
+            print(colored(guess[idx], 'green'), end='')
+        elif letter == 'y':
+            print(colored(guess[idx], 'yellow'), end='')
+        elif letter == 'b':
+            print(colored(guess[idx], 'red'), end='')  
+        else:
+            print(letter, end = '')
+    print()
+
 
 def filter_secrets(guess, clue, possible_secrets):
     remaining_solutions = []

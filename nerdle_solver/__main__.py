@@ -1,3 +1,5 @@
 from .combinations import get_comb_list, get_sol_list
+from .game import NerdleGame
 
-print(get_sol_list(8))
+game = NerdleGame()
+game.start_game()
