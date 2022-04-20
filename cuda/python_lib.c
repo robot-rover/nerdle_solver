@@ -1,78 +1,76 @@
 #define PY_SSIZE_T_CLEAN
-#include <stdio.h>
 #include <Python.h>
+#include <stdio.h>
 #include <numpy/arrayobject.h>
+#include "cuda_lib.h"
 
 #define NUM_SLOTS 8
 
-extern double * myVectorAdd(double * h_A, double * h_B, int numElements);
-void generate_clueg(uint8_t *guess_eqs, uint32_t num_guess, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *clue_arr);
-
 static PyObject* helloworld(PyObject* self, PyObject* args) {
-    // printf("Hello World\n");
+    printf("Hello World\n");
     return Py_None;
 }
 
-static PyObject* vector_add_cuda(PyObject* self, PyObject* args) {
-    PyArrayObject* array1, * array2;
+typedef struct {
+    PyObject_HEAD
+    size_t num_secret;
+    size_t num_guess;
+    ClueContext* ctx;
+} PythonClueContext;
 
-    if (!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &array1, &PyArray_Type, &array2))
-        return NULL;
-
-    if (array1 -> nd != 1 || array2 -> nd != 1 || array1->descr->type_num != PyArray_DOUBLE || array2->descr->type_num != PyArray_DOUBLE) {
-        PyErr_SetString(PyExc_ValueError, "arrays must be one-dimensional and of type float");
-        return NULL;
-    }
-
-    int n1 = array1->dimensions[0];
-    int n2 = array2->dimensions[0];
-
-    // printf("running vector_add on dim1: %d, stride1: %d, dim2: %d, stride2: %d\n", n1, array1->strides[0], n2, array2->strides[0]);
-
-    if (n1 != n2) {
-        PyErr_SetString(PyExc_ValueError, "arrays must have the same length");
-        return NULL;
-    }
-
-    double * output = myVectorAdd((double *)array1->data, (double *)array2->data, n1);
-
-    return PyArray_SimpleNewFromData(1, PyArray_DIMS(array1), PyArray_TYPE(array1), output);
+static int PythonClueContext_init(PythonClueContext *self, PyObject *args, PyObject *kwds)
+{
+    Py_ssize_t num_secret, num_guess;
+    if (!PyArg_ParseTuple(args, "nn", &num_secret, &num_guess))
+        return -1;
+    self->ctx = NULL;
+    self->num_secret = num_secret;
+    self->num_guess = num_guess;
+    return 0;
 }
 
-static PyObject* vector_add(PyObject* self, PyObject* args) {
-    PyArrayObject* array1, * array2;
-
-    if (!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &array1, &PyArray_Type, &array2))
-        return NULL;
-
-    if (array1 -> nd != 1 || array2 -> nd != 1 || array1->descr->type_num != PyArray_DOUBLE || array2->descr->type_num != PyArray_DOUBLE) {
-        PyErr_SetString(PyExc_ValueError, "arrays must be one-dimensional and of type float");
-        return NULL;
+static void PythonClueContext_dealloc(PythonClueContext *self)
+{
+    if (self->ctx != NULL) {
+        free_context(self->ctx);
+        self->ctx = NULL;
     }
-
-    int n1 = array1->dimensions[0];
-    int n2 = array2->dimensions[0];
-
-    // printf("running vector_add on dim1: %d, stride1: %d, dim2: %d, stride2: %d\n", n1, array1->strides[0], n2, array2->strides[0]);
-
-    if (n1 != n2) {
-        PyErr_SetString(PyExc_ValueError, "arrays must have the same length");
-        return NULL;
-    }
-
-    double * output = (double *) malloc(sizeof(double) * n1);
-
-    for (int i = 0; i < n1; i++)
-        output[i] = *((double *) array1 -> data + i) + *((double *) array2 -> data + i);
-
-    return PyArray_SimpleNewFromData(1, PyArray_DIMS(array1), PyArray_TYPE(array1), output);
+    Py_TYPE(self)->tp_free((PyObject*) self);
 }
 
-static PyObject* generate_clue_gpu(PyObject* self, PyObject* args) {
+static PyObject* PythonClueContext_enter(PythonClueContext *self, PyObject *Py_UNUSED(ignored))
+{
+    if (self->ctx != NULL)
+    {
+        PyErr_SetString(PyExc_ValueError, "PythonClueContext is already opened");
+        return NULL;
+    }
+    self->ctx = create_context(self->num_secret, self->num_guess);
+    return (PyObject*) self;
+}
+
+static PyObject* PythonClueContext_exit(PythonClueContext *self, PyObject *Py_UNUSED(ignored))
+{
+    if (self->ctx == NULL)
+    {
+        PyErr_SetString(PyExc_ValueError, "PythonClueContext isn't opened yet");
+        return NULL;
+    }
+    free_context(self->ctx);
+    self->ctx = NULL;
+    return Py_None;
+}
+
+static PyObject* PythonClueContext_generate_clue(PythonClueContext *self, PyObject *args) {
     PyArrayObject *secrets, *guesses, *clues;
 
     if (!PyArg_ParseTuple(args, "O!O!O!", &PyArray_Type, &secrets, &PyArray_Type, &guesses, &PyArray_Type, &clues))
-        return NULL; // Python throws the correct error if ParseTuple fails
+        return NULL;
+
+    if (self->ctx == NULL) {
+        PyErr_SetString(PyExc_ValueError, "context is not opened");
+        return NULL;
+    }
 
     if (secrets -> nd != 2 || secrets->descr->type_num != NPY_UINT8) {
         PyErr_SetString(PyExc_ValueError, "secrets must be 2 dimensional and of type uint8");
@@ -99,32 +97,73 @@ static PyObject* generate_clue_gpu(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    if (num_secrets > clues->dimensions[0] || num_guesses > clues->dimensions[1]) {
+    if (num_secrets > (size_t)clues->dimensions[0] || num_guesses > (size_t)clues->dimensions[1]) {
         PyErr_SetString(PyExc_ValueError, "clues array isn't big enough");
         return NULL;
     }
 
-
-
-    generate_clueg(secrets->data, num_secrets, guesses->data, num_guesses, clues->data);
+    int result = generate_clueg(self->ctx, secrets->data, num_secrets, guesses->data, num_guesses, clues->data);
+    if (result < 0) {
+        PyErr_Format(PyExc_IOError, "CUDA error (%d)", result);
+        return NULL;
+    }
 
     return Py_None;
 }
 
+static PyMethodDef PythonClueContext_methods[] = {
+    {"__enter__", (PyCFunction) PythonClueContext_enter, METH_NOARGS,
+    "Initialize Context"},
+    {"__exit__", (PyCFunction) PythonClueContext_exit, METH_VARARGS,
+    "Free Context"},
+    {"generate_clue", (PyCFunction) PythonClueContext_generate_clue, METH_VARARGS,
+    "Generate Clue"},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PythonClueContextType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "nerdle_cuda_ext.PythonClueContext",
+    .tp_doc = "Python Cuda Clue Context",
+    .tp_basicsize = sizeof(PythonClueContext),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc) PythonClueContext_init,
+    .tp_dealloc = (destructor) PythonClueContext_dealloc,
+    .tp_methods = PythonClueContext_methods,
+};
+
 static PyMethodDef methods[] = {
     {"helloworld", helloworld, METH_NOARGS, "A Simple Hello World Function"}, // (function name, function, arguments, doc_string)
-    {"vector_add", vector_add, METH_VARARGS, "add two numpy float arrays together on the CPU"},
-    {"vector_add_cuda", vector_add_cuda, METH_VARARGS, "add two numpy float arrays together on the GPU"},
-    {"generate_clue_gpu", generate_clue_gpu, METH_VARARGS, "nerdle clue GPU"},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef nerdle_cuda = {
-    PyModuleDef_HEAD_INIT, "nerdle_cuda_ext", // name of the module
-    "nerdle_cuda_ext", -1, methods
+    PyModuleDef_HEAD_INIT,
+    .m_name = "nerdle_cuda_ext",
+    .m_doc = "Cuda Nerdle Extension",
+    .m_size = -1,
+    .m_methods = methods,
 };
 
 PyMODINIT_FUNC PyInit_nerdle_cuda_ext(void) {
     import_array();
-    return PyModule_Create(&nerdle_cuda);
+    PyObject *m;
+    if (PyType_Ready(&PythonClueContextType) < 0) {
+        return NULL;
+    }
+
+    m = PyModule_Create(&nerdle_cuda);
+    if (m == NULL)
+        return NULL;
+
+    Py_INCREF(&PythonClueContextType);
+    if (PyModule_AddObject(m, "PythonClueContext", (PyObject*) &PythonClueContextType) < 0) {
+        Py_DECREF(&PythonClueContextType);
+        Py_DECREF(m);
+        return NULL;
+    }
+
+    return m;
 }

@@ -10,7 +10,7 @@ from nerdle_solver.equation import eq_to_array, eqs_to_array
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map, process_map
 
-from nerdle_cuda import generate_clue_gpu
+from nerdle_cuda import PythonClueContext
 
 # Windows Sillyness
 if __name__ == '__main__':
@@ -23,7 +23,7 @@ secrets_array = eqs_to_array(sols)
 
 def do_iter(guess):
     guess_array = eq_to_array(guess)
-    entropy = expected_entropy(guess_array, secrets_array, backend=generate_clue_gpu)
+    entropy = expected_entropy(guess_array, secrets_array)
     return (guess, entropy)
 
 # 7:19 Serial
@@ -40,11 +40,12 @@ if __name__ == '__main__':
     num_secrets = len(sols)
     batch_size = 5000
     clues = np.zeros((batch_size, batch_size, 8), dtype=np.uint8)
-    for x_chunk in tqdm(range(0, num_secrets, batch_size), disable=False):
-        x_lim = min(x_chunk + batch_size, num_secrets)
-        for y_chunk in tqdm(range(0, num_guess, batch_size), leave=False, disable=False):
-            y_lim = min(y_chunk + batch_size, num_guess)
-            generate_clue_gpu(secrets_array[x_chunk:x_lim, :], guess_array[y_chunk:y_lim, :], clues)
+    with PythonClueContext(batch_size, batch_size) as ctx:
+        for x_chunk in tqdm(range(0, num_secrets, batch_size), disable=False):
+            x_lim = min(x_chunk + batch_size, num_secrets)
+            for y_chunk in tqdm(range(0, num_guess, batch_size), leave=False, disable=False):
+                y_lim = min(y_chunk + batch_size, num_guess)
+                ctx.generate_clue(secrets_array[x_chunk:x_lim, :], guess_array[y_chunk:y_lim, :], clues)
 
     entropies.sort(key=lambda tup: tup[1], reverse=True)
 
