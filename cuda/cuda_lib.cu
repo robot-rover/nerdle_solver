@@ -4,6 +4,9 @@
 #include <cassert>
 #include "cuda_lib.h"
 
+// #define KERNEL_DEBUG
+// #define API_DEBUG
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -16,12 +19,12 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 #define NUM_SLOTS 8
 #define SYMBOL_ORD 15
-__device__ static constexpr char DEGUB_SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
+__device__ static constexpr char DEBUG_SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
 
 __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret, uint32_t secret_pitch, uint8_t *guess, uint32_t num_guess, uint32_t guess_pitch, uint8_t *clues, uint32_t clues_pitch)
 {
     __shared__ uint8_t secret_cache[32 * NUM_SLOTS];
-    __shared__ uint8_t guess_cache[32 * NUM_SLOTS];
+    __shared__ uint8_t guess_cache[1 * NUM_SLOTS];
     uint8_t counts[SYMBOL_ORD];
     uint8_t clue[NUM_SLOTS];
 
@@ -29,7 +32,7 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
     uint32_t secret_offset = threadIdx.x * NUM_SLOTS;
     uint32_t guess_addr = threadIdx.y + blockDim.y * blockIdx.y;
     uint32_t guess_offset = threadIdx.y * NUM_SLOTS;
-    int32_t clues_offset = secret_addr * NUM_SLOTS + guess_addr * clues_pitch;
+    uint32_t clues_offset = secret_addr * NUM_SLOTS + guess_addr * clues_pitch;
 
     if (secret_addr < num_secret && guess_addr < num_guess)
     {
@@ -37,6 +40,9 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
         {
             uint32_t x_cache_offset = threadIdx.x * NUM_SLOTS;
             uint32_t x_main_offset = secret_addr * secret_pitch;
+#ifdef KERNEL_DEBUG
+            printf("Loading Secret %d (co: %d, mo: %d)\n", threadIdx.x, x_cache_offset, x_main_offset);
+#endif
             for (int i = 0; i < NUM_SLOTS; i++)
             {
                 secret_cache[x_cache_offset + i] = secret[x_main_offset + i];
@@ -46,6 +52,9 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
         {
             uint32_t y_cache_offset = threadIdx.y * NUM_SLOTS;
             uint32_t y_main_offset = guess_addr * guess_pitch;
+#ifdef KERNEL_DEBUG
+            printf("Loading Guess %d (co: %d, mo: %d)\n", threadIdx.y, y_cache_offset, y_main_offset);
+#endif
             for (int i = 0; i < NUM_SLOTS; i++)
             {
                 guess_cache[y_cache_offset + i] = guess[y_main_offset + i];
@@ -57,6 +66,17 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
 
     if (secret_addr < num_secret && guess_addr < num_guess)
     {
+#ifdef KERNEL_DEBUG
+        char secret[9];
+        char guess[9];
+        for (int i = 0; i < NUM_SLOTS; i++) {
+            secret[i] = DEBUG_SYMBOL_TABLE[secret_cache[secret_offset + i]];
+            guess[i] = DEBUG_SYMBOL_TABLE[guess_cache[guess_offset + i]];
+        }
+        secret[8] = '\0';
+        guess[8] = '\0';
+        printf("(%d,%d): Secret: %s, Guess: %s\n", secret_addr, guess_addr, secret, guess);
+#endif
         for (int i = 0; i < SYMBOL_ORD; i++)
         {
             counts[i] = 0;
@@ -70,14 +90,34 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
             uint8_t zero_if_green = secret_symbol == guess_symbol ? 0 : 1;
             counts[secret_symbol] += zero_if_green;
             clue[i] = zero_if_green;
+#ifdef KERNEL_DEBUG
+            printf("(%d,%d): A%d SecretSym: %d, GuessSym: %d, ZIG: %d\n", secret_addr, guess_addr, i, secret_symbol, guess_symbol, zero_if_green);
+#endif
         }
+#ifdef KERNEL_DEBUG
+        char count_str[SYMBOL_ORD*4 + 1];
+        count_str[SYMBOL_ORD*4] = '\0';
+        for (int i = 0; i < SYMBOL_ORD; i++) {
+            count_str[i*4] = DEBUG_SYMBOL_TABLE[i];
+            count_str[i*4+1] = ':';
+            count_str[i*4+2] = '0' + counts[i];
+            count_str[i*4+3] = ' ';
+        }
+        printf("(%d,%d): Counts: %s\n", secret_addr, guess_addr, count_str);
+#endif
         for (int i = 0; i < NUM_SLOTS; i++)
         {
-            uint8_t guess_symbol = guess_cache[secret_offset + i];
+            uint8_t guess_symbol = guess_cache[guess_offset + i];
             uint8_t one_if_yellow = clue[i] & (counts[guess_symbol] > 0 ? 1 : 0);
             counts[guess_symbol] -= one_if_yellow;
             clue[i] += one_if_yellow;
+#ifdef KERNEL_DEBUG
+            printf("(%d,%d): B%d GuessSym: %d, OIY: %d\n", secret_addr, guess_addr, i, guess_symbol, one_if_yellow);
+#endif
         }
+#ifdef KERNEL_DEBUG
+        printf("(%d,%d): Clue Offset: %d\n", secret_addr, guess_addr, clues_offset);
+#endif
         for (int i = 0; i < NUM_SLOTS; i++)
         {
             clues[clues_offset + i] = clue[i];
@@ -134,7 +174,9 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t nu
     dim3 blocks(blocksPerGridx, blocksPerGridy);
     dim3 threads(threadsPerBlock, threadsPerBlock);
 
-    // printf("CUDA: kernel launch with %dx%d blocks of %d threads\n", blocksPerGridx, blocksPerGridy, threadsPerBlock);
+#ifdef API_DEBUG
+    printf("CUDA: kernel launch with %dx%d blocks of %d threads\n", blocksPerGridx, blocksPerGridy, threadsPerBlock);
+#endif
     generate_clue_kernel<<<blocks, threads>>>(ctx->d_secret, num_secret, ctx->secret_pitch, ctx->d_guess, num_guess, ctx->guess_pitch, ctx->d_clues, ctx->clues_pitch);
 
     // Copy the device result vector in device memory to the host result vector

@@ -44,7 +44,6 @@ class PythonClueContext:
 
     def __enter__(self):
         self.ctx_handle = cuda_lib.create_context(self.num_secrets, self.num_guesses)
-        print(repr(self.ctx_handle))
         return self
 
     def generate_clue(self, secrets, guesses, clues):
@@ -76,7 +75,7 @@ class PythonClueContext:
         guess_ptr = ctypes.cast(guesses.__array_interface__['data'][0], SLOTS_PTR)
         clue_ptr = ctypes.cast(clues.__array_interface__['data'][0], SLOTS_PTR)
 
-        cuda_lib.generate_clueg(
+        retval = cuda_lib.generate_clueg(
             self.ctx_handle,
             secret_ptr,
             secrets.shape[0],
@@ -84,8 +83,10 @@ class PythonClueContext:
             guesses.shape[0],
             clue_ptr)
 
+        if retval < 0:
+            raise RuntimeError(f"CUDA lib returned nonzero: {retval}")
+
     def __exit__(self, exc_type, exc_value, traceback):
-        print(repr(self.ctx_handle))
         cuda_lib.free_context(self.ctx_handle)
         self.ctx_handle = ctypes.c_void_p()
 
