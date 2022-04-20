@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#define DLL_EXPORT __declspec(dllexport)
+
 typedef struct {
     // Secrets
     uint8_t *d_secret;
@@ -18,9 +20,10 @@ typedef struct {
 extern "C" {
 #endif
 
-ClueContext* create_context(uint32_t num_secret, uint32_t num_guess);
-void free_context(ClueContext *ctx);
-int generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *guess_eqs, uint32_t num_guess, uint8_t *clue_arr);
+ClueContext DLL_EXPORT *create_context(uint32_t num_secret, uint32_t num_guess);
+void DLL_EXPORT free_context(ClueContext *ctx);
+int DLL_EXPORT generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *guess_eqs, uint32_t num_guess, uint8_t *clue_arr);
+void DLL_EXPORT helloworld();
 
 #ifdef __cplusplus
 }

@@ -48,7 +48,7 @@ if __name__ == '__main__':
                 # secrets, guesses
                 ctx.generate_clue(secret_array[x_chunk:x_lim, :], guess_array[y_chunk:y_lim, :], clues)
                 for idx, guess in enumerate(guess_array[y_chunk:y_lim]):
-                    entropy = expected_entropy(clues[:,:])
+                    entropy = expected_entropy(clues[:,idx], )
                     entropies.append((guess, entropy))
 
     entropies.sort(key=lambda tup: tup[1], reverse=True)

@@ -3,7 +3,12 @@
 /combinations*.txt
 *.pyc
 __pycache__
-cuda/build/
+/cuda/build/
 *.obj
 *.lib
 *.egg-info
+*.dll
+*.exp
+/build/
+/.vs/
+/.vscode/

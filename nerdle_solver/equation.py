@@ -1,7 +1,7 @@
 import string
 import numpy as np
 
-from nerdle_solver.clues import CLUE_TYPES
+from .clues import CLUE_TYPES
 
 
 def apply_operator(operator, left, right):

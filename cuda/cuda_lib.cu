@@ -4,6 +4,16 @@
 #include <cassert>
 #include "cuda_lib.h"
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 #define NUM_SLOTS 8
 #define SYMBOL_ORD 15
 __device__ static constexpr char DEGUB_SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
@@ -84,22 +94,22 @@ extern "C" ClueContext* create_context(uint32_t num_secret, uint32_t num_guess) 
     size_t eq_width = sizeof(uint8_t) * NUM_SLOTS;
 
     // Create guess on device (2D)
-    cudaMallocPitch((void **)&ctx->d_guess, &ctx->guess_pitch, eq_width, num_guess);
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_guess, &ctx->guess_pitch, eq_width, num_guess));
 
     // Create secret on device (2D)
-    cudaMallocPitch((void **)&ctx->d_secret, &ctx->secret_pitch, eq_width, num_secret);
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_secret, &ctx->secret_pitch, eq_width, num_secret));
 
     // Create clues on device (2D)
-    cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, eq_width * num_secret, num_guess);
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, eq_width * num_secret, num_guess));
 
     return ctx;
 }
 
 extern "C" void free_context(ClueContext *ctx) {
     // Free device global memory
-    cudaFree(ctx->d_secret);
-    cudaFree(ctx->d_guess);
-    cudaFree(ctx->d_clues);
+    gpuErrchk(cudaFree(ctx->d_secret));
+    gpuErrchk(cudaFree(ctx->d_guess));
+    gpuErrchk(cudaFree(ctx->d_clues));
     free(ctx);
 }
 
@@ -114,8 +124,8 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t nu
     }
 
     // Copy to the device
-    cudaMemcpy2D(ctx->d_secret, ctx->secret_pitch, secret_eqs, eq_width, eq_width, num_secret, cudaMemcpyHostToDevice);
-    cudaMemcpy2D(ctx->d_guess, ctx->guess_pitch, guess_eqs, eq_width, eq_width, num_guess, cudaMemcpyHostToDevice);
+    gpuErrchk(cudaMemcpy2D(ctx->d_secret, ctx->secret_pitch, secret_eqs, eq_width, eq_width, num_secret, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy2D(ctx->d_guess, ctx->guess_pitch, guess_eqs, eq_width, eq_width, num_guess, cudaMemcpyHostToDevice));
 
     // Launch the Vector Add CUDA Kernel
     int threadsPerBlock = 32;
@@ -129,7 +139,11 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t nu
 
     // Copy the device result vector in device memory to the host result vector
     // in host memory.
-    cudaMemcpy2D(clue_arr, eq_width * num_secret, ctx->d_clues, ctx->clues_pitch, eq_width * num_secret, num_guess, cudaMemcpyDeviceToHost);
+    gpuErrchk(cudaMemcpy2D(clue_arr, eq_width * num_secret, ctx->d_clues, ctx->clues_pitch, eq_width * num_secret, num_guess, cudaMemcpyDeviceToHost));
 
     return 0;
+}
+
+extern "C" void helloworld() {
+    printf("Hello World\n");
 }

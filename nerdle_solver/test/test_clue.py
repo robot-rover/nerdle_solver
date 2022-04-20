@@ -5,7 +5,7 @@ import numpy as np
 from nerdle_solver.equation import array_to_clues, array_to_eqs, eqs_to_array
 
 from ..clues import generate_clue, generate_cluev
-from nerdle_cuda import generate_clue_gpu
+from nerdle_cuda import PythonClueContext
 
 class TestClue(unittest.TestCase):
     def test(self):
@@ -54,11 +54,20 @@ class TestClue(unittest.TestCase):
             ('27+20=47', 'gggggggg'),
         ]
         eq_array = eqs_to_array([case[0] for case in cases])
-        guess_arr = eqs_to_array([guess]).squeeze()
-        clues = generate_clue_gpu(eq_array.astype(np.uint8), guess_arr.astype(np.uint8))
-        clues_str = array_to_clues(clues)
+        guess_arr = eqs_to_array([guess])
+        clues = np.zeros((len(cases),1,8), dtype=np.uint8)
+        with PythonClueContext(len(cases),1) as ctx:
+            pass
+            print('A')
+            ctx.generate_clue(eq_array, guess_arr, clues)
+            print('B')
+        clues_str = array_to_clues(clues.squeeze())
+        print('C')
         for idx, clue in enumerate(clues_str):
+            print(clue)
             self.assertEqual(clue, cases[idx][1], cases[idx])
+            print('Checked')
+        print('Done')
 
     def test_eq_to_array(self):
         cases = [

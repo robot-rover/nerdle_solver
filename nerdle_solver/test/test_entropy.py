@@ -1,5 +1,6 @@
 import unittest
 from math import log2
+from nerdle_solver.clues import generate_clue, generate_cluev
 
 from nerdle_solver.equation import eq_to_array, eqs_to_array
 
@@ -17,4 +18,5 @@ class TestEntropy(unittest.TestCase):
             E = sum(p*log2(1/p) for p in ps)
             guess = eq_to_array(case[0])
             secrets = eqs_to_array(case[2])
-            self.assertEqual(expected_entropy(guess, secrets), E, case)
+            clues = generate_cluev(secrets, guess)
+            self.assertEqual(expected_entropy(clues, secrets.shape[0]), E, case)

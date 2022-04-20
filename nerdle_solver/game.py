@@ -41,7 +41,7 @@ class NerdlePlayer:
 
     def win(self):
         pass
-    
+
     def lose(self):
         pass
 
@@ -67,7 +67,7 @@ class TerminalNerdlePlayer(NerdlePlayer):
 
     def win(self, numGuesses):
         print("You Won! It took you " + str(numGuesses) +" guesses")
-    
+
     def lose(self, secret):
         print("You Lost! The equation was: " + str(secret))
         print("Dumbass")
