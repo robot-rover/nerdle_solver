@@ -24,7 +24,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 #define NUM_SLOTS 8
 #define SYMBOL_ORD 15
 
-__global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_t guess_pitch, const uint8_t *secret, uint32_t num_secret, uint32_t secret_pitch, uint8_t *clues, uint32_t clues_pitch)
+__global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_t guess_pitch, const uint8_t *secret, uint32_t num_secret, uint32_t secret_pitch, uint16_t *clues, uint32_t clues_pitch)
 {
     __shared__ uint8_t guess_cache[32 * NUM_SLOTS];
     __shared__ uint8_t secret_cache[32 * NUM_SLOTS];
@@ -35,7 +35,7 @@ __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_
     uint32_t guess_offset = threadIdx.x * NUM_SLOTS;
     uint32_t secret_addr = threadIdx.y + blockDim.y * blockIdx.y;
     uint32_t secret_offset = threadIdx.y * NUM_SLOTS;
-    uint32_t clues_offset = guess_addr * NUM_SLOTS + secret_addr * clues_pitch;
+    uint32_t clues_offset = guess_addr + secret_addr * (clues_pitch / sizeof(uint16_t));
 
     if (secret_addr < num_secret && guess_addr < num_guess)
     {
@@ -121,10 +121,13 @@ __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_
 #ifdef KERNEL_DEBUG
         printf("(%d,%d): Clue Offset: %d\n", guess_addr, secret_addr, clues_offset);
 #endif
+        uint16_t clue_packed = 0;
         for (int i = 0; i < NUM_SLOTS; i++)
         {
-            clues[clues_offset + i] = clue[i];
+            clue_packed *= 3;
+            clue_packed += clue[i];
         }
+        clues[clues_offset] = clue_packed;
     }
 }
 
@@ -143,7 +146,7 @@ extern "C" ClueContext* create_context(uint32_t num_guess, uint32_t num_secret) 
     gpuErrchk(cudaMallocPitch((void **)&ctx->d_secret, &ctx->secret_pitch, eq_width, num_secret));
 
     // Create clues on device (2D)
-    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, eq_width * num_guess, num_secret));
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, sizeof(uint16_t) * num_guess, num_secret));
 
     gpuErrchk(cudaDeviceSynchronize());
 
@@ -159,7 +162,7 @@ extern "C" void free_context(ClueContext *ctx) {
     free(ctx);
 }
 
-extern "C" int generate_clueg(ClueContext *ctx, uint8_t *guess_eqs, uint32_t num_guess, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *clue_arr)
+extern "C" int generate_clueg(ClueContext *ctx, uint8_t *guess_eqs, uint32_t num_guess, uint8_t *secret_eqs, uint32_t num_secret, uint16_t *clue_arr)
 {
     size_t eq_width = sizeof(uint8_t) * NUM_SLOTS;
     if (num_guess > ctx->guess_alloc_rows) {
@@ -187,7 +190,7 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *guess_eqs, uint32_t num
 
     // Copy the device result vector in device memory to the host result vector
     // in host memory.
-    gpuErrchk(cudaMemcpy2D(clue_arr, eq_width * num_guess, ctx->d_clues, ctx->clues_pitch, eq_width * num_guess, num_secret, cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy2D(clue_arr, sizeof(uint16_t)*num_guess, ctx->d_clues, ctx->clues_pitch, sizeof(uint16_t) * num_guess, num_secret, cudaMemcpyDeviceToHost));
     gpuErrchk(cudaDeviceSynchronize());
 
     return 0;

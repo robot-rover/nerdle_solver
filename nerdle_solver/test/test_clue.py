@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from nerdle_solver.equation import array_to_clues, array_to_eqs, eqs_to_array
+from nerdle_solver.equation import array_to_clues, array_to_eqs, eqs_to_array, packed_array_to_clues
 
 from ..clues import generate_clue, generate_cluev
 from nerdle_cuda import PythonClueContext
@@ -55,12 +55,12 @@ class TestClue(unittest.TestCase):
         ]
         eq_array = eqs_to_array([case[0] for case in cases])
         guess_arr = eqs_to_array([guess])
-        clues = np.zeros((1, len(cases), 8), dtype=np.uint8)
+        clues = np.zeros((1, len(cases)), dtype=np.uint16)
         with PythonClueContext(1, len(cases)) as ctx:
             ctx.generate_clue(guess_arr, eq_array, clues)
-        clues_str = array_to_clues(clues.squeeze())
+        clues_str = packed_array_to_clues(clues.squeeze())
         for idx, clue in enumerate(clues_str):
-            self.assertEqual(clue, cases[idx][1], idx)
+            self.assertEqual(clue, cases[idx][1], f'Case {idx}')
 
     def test_eq_to_array(self):
         cases = [

@@ -102,3 +102,15 @@ def array_to_clues(array):
     return [
         ''.join(INDEX_TO_CLUE[array[idx,:]]) for idx in range(array.shape[0])
     ]
+
+def unpack_array(array, slots=8, ord=3):
+    unpacked = (array[...,np.newaxis] // ord**np.arange(slots)[::-1]) % ord
+    return unpacked
+
+def pack_array(array, ord=3):
+    packed = np.sum(array * ord**np.arange(array.shape[-1])[::-1], axis=-1)
+    return packed
+
+def packed_array_to_clues(array):
+    unpacked = unpack_array(array)
+    return array_to_clues(unpacked)

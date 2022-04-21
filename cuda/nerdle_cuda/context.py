@@ -12,6 +12,7 @@ dll_handle = win32api.LoadLibraryEx(dll_path, 0, win32con.LOAD_WITH_ALTERED_SEAR
 dll_obj = ctypes.CDLL(dll_name)
 
 SLOTS_PTR = ctypes.POINTER(ctypes.c_uint8)
+CLUES_PTR = ctypes.POINTER(ctypes.c_uint16)
 
 class CudaLib:
     def __init__(self, lib):
@@ -31,7 +32,7 @@ class CudaLib:
         self.generate_clueg.argtypes = [ctypes.c_void_p,
             SLOTS_PTR, ctypes.c_uint32,
             SLOTS_PTR, ctypes.c_uint32,
-            SLOTS_PTR]
+            CLUES_PTR]
         self.generate_clueg.restype = ctypes.c_int
 
 cuda_lib = CudaLib(dll_obj)
@@ -51,15 +52,14 @@ class PythonClueContext:
 
         assert len(secrets.shape) == 2, "secrets must be 2D"
         assert len(guesses.shape) == 2, "guesses must be 2D"
-        assert len(clues.shape) == 3, "clues must be 2D"
+        assert len(clues.shape) == 2, "clues must be 2D"
 
         assert secrets.dtype == np.uint8, "array dtype must be uint8"
         assert guesses.dtype == np.uint8, "array dtype must be uint8"
-        assert secrets.dtype == np.uint8, "array dtype must be uint8"
+        assert clues.dtype == np.uint16, "array dtype must be uint8"
 
         assert secrets.shape[1] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
         assert guesses.shape[1] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
-        assert clues.shape[2] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
         assert clues.shape[0] >= guesses.shape[0] and clues.shape[1] >= secrets.shape[0], \
             "clues is not large enough"
 
@@ -73,7 +73,7 @@ class PythonClueContext:
 
         secret_ptr = ctypes.cast(secrets.__array_interface__['data'][0], SLOTS_PTR)
         guess_ptr = ctypes.cast(guesses.__array_interface__['data'][0], SLOTS_PTR)
-        clue_ptr = ctypes.cast(clues.__array_interface__['data'][0], SLOTS_PTR)
+        clue_ptr = ctypes.cast(clues.__array_interface__['data'][0], CLUES_PTR)
 
         retval = cuda_lib.generate_clueg(
             self.ctx_handle,

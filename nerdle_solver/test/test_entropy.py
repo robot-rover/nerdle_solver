@@ -2,7 +2,7 @@ import unittest
 from math import log2
 from nerdle_solver.clues import generate_clue, generate_cluev
 
-from nerdle_solver.equation import eq_to_array, eqs_to_array
+from nerdle_solver.equation import eq_to_array, eqs_to_array, pack_array
 
 from ..entropy import expected_entropy
 
@@ -19,4 +19,5 @@ class TestEntropy(unittest.TestCase):
             guess = eq_to_array(case[0])
             secrets = eqs_to_array(case[2])
             clues = generate_cluev(secrets, guess)
-            self.assertEqual(expected_entropy(clues, secrets.shape[0]), E, case)
+            clues_packed = pack_array(clues, ord=5)
+            self.assertEqual(expected_entropy(clues_packed, secrets.shape[0]), E, case)
