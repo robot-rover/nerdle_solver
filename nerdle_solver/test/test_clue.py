@@ -55,9 +55,9 @@ class TestClue(unittest.TestCase):
         ]
         eq_array = eqs_to_array([case[0] for case in cases])
         guess_arr = eqs_to_array([guess])
-        clues = np.zeros((len(cases),1,8), dtype=np.uint8)
-        with PythonClueContext(len(cases),1) as ctx:
-            ctx.generate_clue(eq_array, guess_arr, clues)
+        clues = np.zeros((1, len(cases), 8), dtype=np.uint8)
+        with PythonClueContext(1, len(cases)) as ctx:
+            ctx.generate_clue(guess_arr, eq_array, clues)
         clues_str = array_to_clues(clues.squeeze())
         for idx, clue in enumerate(clues_str):
             self.assertEqual(clue, cases[idx][1], idx)

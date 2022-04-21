@@ -7,6 +7,10 @@
 // #define KERNEL_DEBUG
 // #define API_DEBUG
 
+#ifdef KERNEL_DEBUG
+__device__ static constexpr char DEBUG_SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
+#endif
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -19,45 +23,44 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 #define NUM_SLOTS 8
 #define SYMBOL_ORD 15
-__device__ static constexpr char DEBUG_SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
 
-__global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret, uint32_t secret_pitch, uint8_t *guess, uint32_t num_guess, uint32_t guess_pitch, uint8_t *clues, uint32_t clues_pitch)
+__global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_t guess_pitch, const uint8_t *secret, uint32_t num_secret, uint32_t secret_pitch, uint8_t *clues, uint32_t clues_pitch)
 {
+    __shared__ uint8_t guess_cache[32 * NUM_SLOTS];
     __shared__ uint8_t secret_cache[32 * NUM_SLOTS];
-    __shared__ uint8_t guess_cache[1 * NUM_SLOTS];
     uint8_t counts[SYMBOL_ORD];
     uint8_t clue[NUM_SLOTS];
 
-    uint32_t secret_addr = threadIdx.x + blockDim.x * blockIdx.x;
-    uint32_t secret_offset = threadIdx.x * NUM_SLOTS;
-    uint32_t guess_addr = threadIdx.y + blockDim.y * blockIdx.y;
-    uint32_t guess_offset = threadIdx.y * NUM_SLOTS;
-    uint32_t clues_offset = secret_addr * NUM_SLOTS + guess_addr * clues_pitch;
+    uint32_t guess_addr = threadIdx.x + blockDim.x * blockIdx.x;
+    uint32_t guess_offset = threadIdx.x * NUM_SLOTS;
+    uint32_t secret_addr = threadIdx.y + blockDim.y * blockIdx.y;
+    uint32_t secret_offset = threadIdx.y * NUM_SLOTS;
+    uint32_t clues_offset = guess_addr * NUM_SLOTS + secret_addr * clues_pitch;
 
     if (secret_addr < num_secret && guess_addr < num_guess)
     {
         if (threadIdx.y == 0)
         {
             uint32_t x_cache_offset = threadIdx.x * NUM_SLOTS;
-            uint32_t x_main_offset = secret_addr * secret_pitch;
+            uint32_t x_main_offset = guess_addr * guess_pitch;
 #ifdef KERNEL_DEBUG
-            printf("Loading Secret %d (co: %d, mo: %d)\n", threadIdx.x, x_cache_offset, x_main_offset);
+            printf("Loading Guess %d (co: %d, mo: %d)\n", threadIdx.x, x_cache_offset, x_main_offset);
 #endif
             for (int i = 0; i < NUM_SLOTS; i++)
             {
-                secret_cache[x_cache_offset + i] = secret[x_main_offset + i];
+                guess_cache[x_cache_offset + i] = guess[x_main_offset + i];
             }
         }
         if (threadIdx.x == 0)
         {
             uint32_t y_cache_offset = threadIdx.y * NUM_SLOTS;
-            uint32_t y_main_offset = guess_addr * guess_pitch;
+            uint32_t y_main_offset = secret_addr * secret_pitch;
 #ifdef KERNEL_DEBUG
-            printf("Loading Guess %d (co: %d, mo: %d)\n", threadIdx.y, y_cache_offset, y_main_offset);
+            printf("Loading Secret %d (co: %d, mo: %d)\n", threadIdx.y, y_cache_offset, y_main_offset);
 #endif
             for (int i = 0; i < NUM_SLOTS; i++)
             {
-                guess_cache[y_cache_offset + i] = guess[y_main_offset + i];
+                secret_cache[y_cache_offset + i] = secret[y_main_offset + i];
             }
         }
     }
@@ -75,7 +78,7 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
         }
         secret[8] = '\0';
         guess[8] = '\0';
-        printf("(%d,%d): Secret: %s, Guess: %s\n", secret_addr, guess_addr, secret, guess);
+        printf("(%d,%d): Guess: %s, Secret: %s\n", guess_addr, secret_addr, guess, secret);
 #endif
         for (int i = 0; i < SYMBOL_ORD; i++)
         {
@@ -91,7 +94,7 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
             counts[secret_symbol] += zero_if_green;
             clue[i] = zero_if_green;
 #ifdef KERNEL_DEBUG
-            printf("(%d,%d): A%d SecretSym: %d, GuessSym: %d, ZIG: %d\n", secret_addr, guess_addr, i, secret_symbol, guess_symbol, zero_if_green);
+            printf("(%d,%d): A%d SecretSym: %d, GuessSym: %d, ZIG: %d\n", guess_addr, secret_addr, i, secret_symbol, guess_symbol, zero_if_green);
 #endif
         }
 #ifdef KERNEL_DEBUG
@@ -103,7 +106,7 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
             count_str[i*4+2] = '0' + counts[i];
             count_str[i*4+3] = ' ';
         }
-        printf("(%d,%d): Counts: %s\n", secret_addr, guess_addr, count_str);
+        printf("(%d,%d): Counts: %s\n", guess_addr, secret_addr, count_str);
 #endif
         for (int i = 0; i < NUM_SLOTS; i++)
         {
@@ -112,11 +115,11 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
             counts[guess_symbol] -= one_if_yellow;
             clue[i] += one_if_yellow;
 #ifdef KERNEL_DEBUG
-            printf("(%d,%d): B%d GuessSym: %d, OIY: %d\n", secret_addr, guess_addr, i, guess_symbol, one_if_yellow);
+            printf("(%d,%d): B%d GuessSym: %d, OIY: %d\n", guess_addr, secret_addr, i, guess_symbol, one_if_yellow);
 #endif
         }
 #ifdef KERNEL_DEBUG
-        printf("(%d,%d): Clue Offset: %d\n", secret_addr, guess_addr, clues_offset);
+        printf("(%d,%d): Clue Offset: %d\n", guess_addr, secret_addr, clues_offset);
 #endif
         for (int i = 0; i < NUM_SLOTS; i++)
         {
@@ -125,7 +128,7 @@ __global__ void generate_clue_kernel(const uint8_t *secret, uint32_t num_secret,
     }
 }
 
-extern "C" ClueContext* create_context(uint32_t num_secret, uint32_t num_guess) {
+extern "C" ClueContext* create_context(uint32_t num_guess, uint32_t num_secret) {
     ClueContext *ctx = (ClueContext*)malloc(sizeof(ClueContext));
     ctx->secret_alloc_rows = num_secret;
     ctx->guess_alloc_rows = num_guess;
@@ -140,7 +143,9 @@ extern "C" ClueContext* create_context(uint32_t num_secret, uint32_t num_guess) 
     gpuErrchk(cudaMallocPitch((void **)&ctx->d_secret, &ctx->secret_pitch, eq_width, num_secret));
 
     // Create clues on device (2D)
-    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, eq_width * num_secret, num_guess));
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, eq_width * num_guess, num_secret));
+
+    gpuErrchk(cudaDeviceSynchronize());
 
     return ctx;
 }
@@ -150,10 +155,11 @@ extern "C" void free_context(ClueContext *ctx) {
     gpuErrchk(cudaFree(ctx->d_secret));
     gpuErrchk(cudaFree(ctx->d_guess));
     gpuErrchk(cudaFree(ctx->d_clues));
+    gpuErrchk(cudaDeviceSynchronize());
     free(ctx);
 }
 
-extern "C" int generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *guess_eqs, uint32_t num_guess, uint8_t *clue_arr)
+extern "C" int generate_clueg(ClueContext *ctx, uint8_t *guess_eqs, uint32_t num_guess, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *clue_arr)
 {
     size_t eq_width = sizeof(uint8_t) * NUM_SLOTS;
     if (num_guess > ctx->guess_alloc_rows) {
@@ -164,24 +170,25 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t nu
     }
 
     // Copy to the device
-    gpuErrchk(cudaMemcpy2D(ctx->d_secret, ctx->secret_pitch, secret_eqs, eq_width, eq_width, num_secret, cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpy2D(ctx->d_guess, ctx->guess_pitch, guess_eqs, eq_width, eq_width, num_guess, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy2D(ctx->d_secret, ctx->secret_pitch, secret_eqs, eq_width, eq_width, num_secret, cudaMemcpyHostToDevice));
 
     // Launch the Vector Add CUDA Kernel
     int threadsPerBlock = 32;
-    int blocksPerGridx = (num_secret + threadsPerBlock - 1) / threadsPerBlock;
-    int blocksPerGridy = (num_guess + threadsPerBlock - 1) / threadsPerBlock;
+    int blocksPerGridx = (num_guess + threadsPerBlock - 1) / threadsPerBlock;
+    int blocksPerGridy = (num_secret + threadsPerBlock - 1) / threadsPerBlock;
     dim3 blocks(blocksPerGridx, blocksPerGridy);
     dim3 threads(threadsPerBlock, threadsPerBlock);
 
 #ifdef API_DEBUG
     printf("CUDA: kernel launch with %dx%d blocks of %d threads\n", blocksPerGridx, blocksPerGridy, threadsPerBlock);
 #endif
-    generate_clue_kernel<<<blocks, threads>>>(ctx->d_secret, num_secret, ctx->secret_pitch, ctx->d_guess, num_guess, ctx->guess_pitch, ctx->d_clues, ctx->clues_pitch);
+    generate_clue_kernel<<<blocks, threads>>>(ctx->d_guess, num_guess, ctx->guess_pitch, ctx->d_secret, num_secret, ctx->secret_pitch, ctx->d_clues, ctx->clues_pitch);
 
     // Copy the device result vector in device memory to the host result vector
     // in host memory.
-    gpuErrchk(cudaMemcpy2D(clue_arr, eq_width * num_secret, ctx->d_clues, ctx->clues_pitch, eq_width * num_secret, num_guess, cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy2D(clue_arr, eq_width * num_guess, ctx->d_clues, ctx->clues_pitch, eq_width * num_guess, num_secret, cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaDeviceSynchronize());
 
     return 0;
 }

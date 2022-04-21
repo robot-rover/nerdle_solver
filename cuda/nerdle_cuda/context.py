@@ -37,16 +37,16 @@ class CudaLib:
 cuda_lib = CudaLib(dll_obj)
 
 class PythonClueContext:
-    def __init__(self, num_secrets, num_guesses):
+    def __init__(self, num_guesses, num_secrets):
         self.num_secrets = num_secrets
         self.num_guesses = num_guesses
         self.ctx_handle = ctypes.c_void_p()
 
     def __enter__(self):
-        self.ctx_handle = cuda_lib.create_context(self.num_secrets, self.num_guesses)
+        self.ctx_handle = cuda_lib.create_context(self.num_guesses, self.num_secrets)
         return self
 
-    def generate_clue(self, secrets, guesses, clues):
+    def generate_clue(self, guesses, secrets, clues):
         assert self.ctx_handle != ctypes.c_void_p(), "Context not initialized"
 
         assert len(secrets.shape) == 2, "secrets must be 2D"
@@ -60,7 +60,7 @@ class PythonClueContext:
         assert secrets.shape[1] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
         assert guesses.shape[1] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
         assert clues.shape[2] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
-        assert clues.shape[0] >= secrets.shape[0] and clues.shape[1] >= guesses.shape[0], \
+        assert clues.shape[0] >= guesses.shape[0] and clues.shape[1] >= secrets.shape[0], \
             "clues is not large enough"
 
         assert secrets.__array_interface__['strides'] == None, "strides not supported"
@@ -77,10 +77,10 @@ class PythonClueContext:
 
         retval = cuda_lib.generate_clueg(
             self.ctx_handle,
-            secret_ptr,
-            secrets.shape[0],
             guess_ptr,
             guesses.shape[0],
+            secret_ptr,
+            secrets.shape[0],
             clue_ptr)
 
         if retval < 0:

@@ -95,6 +95,9 @@ def array_to_eqs(array):
         ''.join(INDEX_TO_CHAR[array[idx,:]]) for idx in range(array.shape[0])
     ]
 
+def array_to_eq(array):
+    return ''.join(INDEX_TO_CHAR[array])
+
 def array_to_clues(array):
     return [
         ''.join(INDEX_TO_CLUE[array[idx,:]]) for idx in range(array.shape[0])
