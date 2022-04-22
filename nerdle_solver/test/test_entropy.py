@@ -2,7 +2,7 @@ import unittest
 from math import log2
 from nerdle_solver.clues import generate_clue, generate_cluev
 
-from nerdle_solver.equation import eq_to_array, eqs_to_array, pack_array
+from nerdle_solver.convert import eq_to_array, eqs_to_array, pack_array
 
 from ..entropy import expected_entropy
 

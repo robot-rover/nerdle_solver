@@ -4,49 +4,32 @@ from nerdle_solver.equation import parse, validate
 from nerdle_solver.clues import generate_clue, print_color_guess
 
 class NerdleGame:
-    def __init__(self):
-        pass
+    def __init__(self, player=None, secret=None):
+        self.secret = secret if secret is not None else choice(get_sol_list(8))
+        self.player = player if player is not None else TerminalNerdlePlayer()
 
-    def start_game(self, secret = None):
-        player = TerminalNerdlePlayer()
-        if secret is None:
-            #generate a random secret
-            secret = choice(get_sol_list(8))
-            print("Secret is: " + str(secret) + "\n")
+    def start_game(self):
         guesses_remaining = 6
+        print("Secret is",self.secret)
         while True:
             guesses_remaining = guesses_remaining -1
-            guess = player.get_guess(guesses_remaining)
-            player.give_clue(guess, generate_clue(secret, guess))
-            if guess == str(secret):
-                player.win(6-guesses_remaining)
+            while True:
+                guess = self.player.get_guess(guesses_remaining)
+                if validate(parse(guess)):
+                    break
+                self.player.bad_guess()
+            clue = generate_clue(self.secret, guess)
+            self.player.give_clue(guess, clue)
+
+            if guess == str(self.secret):
+                self.player.win(6-guesses_remaining)
                 break
             elif guesses_remaining == 0:
-                player.lose(secret)
+                self.player.lose(self.secret)
                 break
 
 
-class NerdlePlayer:
-    def __init__(self):
-        pass
-
-    def give_clue(self, clue):
-        pass
-
-    def get_guess(self):
-        pass
-
-    def bad_guess(self, bad_guess):
-        pass
-
-    def win(self):
-        pass
-
-    def lose(self):
-        pass
-
-
-class TerminalNerdlePlayer(NerdlePlayer):
+class TerminalNerdlePlayer:
     def __init__(self):
         pass
 
@@ -58,12 +41,12 @@ class TerminalNerdlePlayer(NerdlePlayer):
         while True:
             print("Enter a guess:")
             guess = input()
-            if validate(parse(guess)):
-                print("\nYou guessed: " + str(guess))
-                print("You have " + str(guesses_remaining) + " guesses remaining")
-                return guess
-            else:
-                print("Invalid input, try again!\n")
+            print("\nYou guessed: " + str(guess))
+            print("You have " + str(guesses_remaining) + " guesses remaining")
+            return guess
+
+    def bad_guess(self):
+        print("Invalid input, try again!\n")
 
     def win(self, numGuesses):
         print("You Won! It took you " + str(numGuesses) +" guesses")

@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import sys
 
-from nerdle_solver.equation import array_to_clues, array_to_eqs, eq_to_array, eqs_to_array, pack_array, packed_array_to_clues, unpack_array
+from nerdle_solver.convert import array_to_clues, array_to_eqs, eq_to_array, eqs_to_array, pack_array, packed_array_to_clues, unpack_array
 
 from ..clues import generate_clue, generate_cluev
 from nerdle_cuda import PythonClueContext

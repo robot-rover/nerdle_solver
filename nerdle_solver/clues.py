@@ -29,7 +29,7 @@ def print_color_guess(guess, clue):
         elif letter == 'y':
             print(colored(guess[idx], 'yellow'), end='')
         elif letter == 'b':
-            print(colored(guess[idx], 'red'), end='')  
+            print(colored(guess[idx], 'red'), end='')
         else:
             print(letter, end = '')
     print()
@@ -41,23 +41,19 @@ def filter_secrets(guess, clue, possible_secrets):
         valid = True
         for index, element in enumerate(clue):
             #check greens
-            if not valid:
-                break
             if element == 'g':
                 if possible_secret[index] == guess[index]:
                     continue
                 else:
                     valid = False
                     break
+            else:
+                if possible_secret[index] != guess[index]:
+                    continue
+                else:
+                    valid = False
+                    break
 
-            #check blacks
-            if element == 'b':
-                for e in possible_secret:
-                    if e != guess[index]:
-                        continue
-                    else:
-                        valid = False
-                        break
 
         #check yellows
         if valid and generate_clue(possible_secret, guess) == clue:

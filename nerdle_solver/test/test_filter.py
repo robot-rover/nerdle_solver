@@ -23,3 +23,11 @@ class TestFilter(unittest.TestCase):
         ]
         for case in cases:
             self.assertEqual(filter_secrets(case[0], case[1], possible_secrets), case[2])
+
+    def test_wierd(self):
+        guess = '22-6*3=4'
+        clue = 'gbgygygy'
+        secrets = ['22-6*3=4', '27-4*6=3', '27-6*4=3']
+        expected = ['27-4*6=3']
+        actual = filter_secrets(guess, clue, secrets)
+        self.assertEqual(expected, actual)
