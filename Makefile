@@ -21,6 +21,10 @@ build/cuda_lib_sh.dll: build/cuda_lib_rt.obj build/cuda_lib.obj
 python: cuda/nerdle_cuda/cuda_lib_sh.dll
 	cd cuda && pip install .
 
+.PHONY: test
+test:
+	python -m unittest
+
 
 .PHONY: python_ext
 python_ext: build/cuda_lib_st.lib cuda/python_lib.c

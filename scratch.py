@@ -38,7 +38,7 @@ if __name__ == '__main__':
         show_progress = False
     entropies = []
     guess_array = eqs_to_array(comb)
-    secret_array = eqs_to_array(comb)
+    secret_array = eqs_to_array(sols)
     num_guess = guess_array.shape[0]
     num_secret = secret_array.shape[0]
     batch_size = 2000

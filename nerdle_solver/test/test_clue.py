@@ -1,8 +1,9 @@
 import unittest
 
 import numpy as np
+import sys
 
-from nerdle_solver.equation import array_to_clues, array_to_eqs, eqs_to_array, packed_array_to_clues
+from nerdle_solver.equation import array_to_clues, array_to_eqs, eq_to_array, eqs_to_array, pack_array, packed_array_to_clues, unpack_array
 
 from ..clues import generate_clue, generate_cluev
 from nerdle_cuda import PythonClueContext
@@ -61,6 +62,40 @@ class TestClue(unittest.TestCase):
         clues_str = packed_array_to_clues(clues.squeeze())
         for idx, clue in enumerate(clues_str):
             self.assertEqual(clue, cases[idx][1], f'Case {idx}')
+
+    def test_compare(self):
+        eqs = [
+            "000001=1",
+            "9/3+2=05",
+            "9/3+2=05",
+            "9/3+2=05",
+            '24+54=78',
+            '27+64=91',
+            '27+47=74',
+            '27+20=47'
+        ]
+
+        python_clues = [
+            [generate_clue(secret, guess) for secret in eqs] for guess in eqs
+        ]
+
+        eqs_array = eqs_to_array(eqs)
+        numpy_clues = [
+            array_to_clues(generate_cluev(eqs_array, eq_to_array(guess))) for guess in eqs
+        ]
+
+        gpu_clues_packed = np.zeros((len(eqs), len(eqs)), dtype=np.uint16)
+        with PythonClueContext(len(eqs), len(eqs)) as ctx:
+           ctx.generate_clue(eqs_array, eqs_array, gpu_clues_packed)
+
+        gpu_clues = [
+            array_to_clues(unpack_array(gpu_clues_row)) for gpu_clues_row in gpu_clues_packed
+        ]
+
+        for guess, pyclue, npclue in zip(eqs, python_clues, numpy_clues):
+            self.assertSequenceEqual(pyclue, npclue, f'PvN Guess {guess}')
+        for guess, npclue, gpuclue in zip(eqs, numpy_clues, gpu_clues):
+            self.assertSequenceEqual(npclue, gpuclue, f'NvG Guess {guess}')
 
     def test_eq_to_array(self):
         cases = [

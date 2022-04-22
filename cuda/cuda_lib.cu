@@ -7,8 +7,13 @@
 // #define KERNEL_DEBUG
 // #define API_DEBUG
 
+#define NUM_SLOTS 8
+#define SYMBOL_ORD 15
+
+
 #ifdef KERNEL_DEBUG
-__device__ static constexpr char DEBUG_SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
+__device__ static constexpr char SYMBOL_TABLE[SYMBOL_ORD + 1] = "0123456789+-*/=";
+__device__ static constexpr char CLUE_TABLE[3 + 1] = "gby";
 #endif
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -21,9 +26,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-#define NUM_SLOTS 8
-#define SYMBOL_ORD 15
-
 __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_t guess_pitch, const uint8_t *secret, uint32_t num_secret, uint32_t secret_pitch, uint16_t *clues, uint32_t clues_pitch)
 {
     __shared__ uint8_t guess_cache[32 * NUM_SLOTS];
@@ -35,7 +37,7 @@ __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_
     uint32_t guess_offset = threadIdx.x * NUM_SLOTS;
     uint32_t secret_addr = threadIdx.y + blockDim.y * blockIdx.y;
     uint32_t secret_offset = threadIdx.y * NUM_SLOTS;
-    uint32_t clues_offset = guess_addr + secret_addr * (clues_pitch / sizeof(uint16_t));
+    uint32_t clues_offset = secret_addr + guess_addr * (clues_pitch / sizeof(uint16_t));
 
     if (secret_addr < num_secret && guess_addr < num_guess)
     {
@@ -73,8 +75,8 @@ __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_
         char secret[9];
         char guess[9];
         for (int i = 0; i < NUM_SLOTS; i++) {
-            secret[i] = DEBUG_SYMBOL_TABLE[secret_cache[secret_offset + i]];
-            guess[i] = DEBUG_SYMBOL_TABLE[guess_cache[guess_offset + i]];
+            secret[i] = SYMBOL_TABLE[secret_cache[secret_offset + i]];
+            guess[i] = SYMBOL_TABLE[guess_cache[guess_offset + i]];
         }
         secret[8] = '\0';
         guess[8] = '\0';
@@ -101,7 +103,7 @@ __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_
         char count_str[SYMBOL_ORD*4 + 1];
         count_str[SYMBOL_ORD*4] = '\0';
         for (int i = 0; i < SYMBOL_ORD; i++) {
-            count_str[i*4] = DEBUG_SYMBOL_TABLE[i];
+            count_str[i*4] = SYMBOL_TABLE[i];
             count_str[i*4+1] = ':';
             count_str[i*4+2] = '0' + counts[i];
             count_str[i*4+3] = ' ';
@@ -118,15 +120,20 @@ __global__ void generate_clue_kernel(uint8_t *guess, uint32_t num_guess, uint32_
             printf("(%d,%d): B%d GuessSym: %d, OIY: %d\n", guess_addr, secret_addr, i, guess_symbol, one_if_yellow);
 #endif
         }
-#ifdef KERNEL_DEBUG
-        printf("(%d,%d): Clue Offset: %d\n", guess_addr, secret_addr, clues_offset);
-#endif
         uint16_t clue_packed = 0;
         for (int i = 0; i < NUM_SLOTS; i++)
         {
             clue_packed *= 3;
             clue_packed += clue[i];
         }
+#ifdef KERNEL_DEBUG
+        char clue_str[NUM_SLOTS + 1];
+        clue_str[NUM_SLOTS] = '\0';
+        for (int i = 0; i < NUM_SLOTS; i++) {
+            clue_str[i] = CLUE_TABLE[clue[i]];
+        }
+        printf("(%d,%d): Clue: %s, Clue Offset: %d, Packed: %d\n", guess_addr, secret_addr, clue_str, clues_offset, clue_packed);
+#endif
         clues[clues_offset] = clue_packed;
     }
 }
@@ -146,7 +153,7 @@ extern "C" ClueContext* create_context(uint32_t num_guess, uint32_t num_secret) 
     gpuErrchk(cudaMallocPitch((void **)&ctx->d_secret, &ctx->secret_pitch, eq_width, num_secret));
 
     // Create clues on device (2D)
-    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, sizeof(uint16_t) * num_guess, num_secret));
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, sizeof(uint16_t) * num_secret, num_guess));
 
     gpuErrchk(cudaDeviceSynchronize());
 
@@ -190,7 +197,7 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *guess_eqs, uint32_t num
 
     // Copy the device result vector in device memory to the host result vector
     // in host memory.
-    gpuErrchk(cudaMemcpy2D(clue_arr, sizeof(uint16_t)*num_guess, ctx->d_clues, ctx->clues_pitch, sizeof(uint16_t) * num_guess, num_secret, cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy2D(clue_arr, sizeof(uint16_t)*num_secret, ctx->d_clues, ctx->clues_pitch, sizeof(uint16_t) * num_secret, num_guess, cudaMemcpyDeviceToHost));
     gpuErrchk(cudaDeviceSynchronize());
 
     return 0;
