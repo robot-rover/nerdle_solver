@@ -1,14 +1,9 @@
-from multiprocessing import cpu_count, freeze_support
+from struct import unpack
 import sys
 
 from nerdle_solver.entropy import expected_entropy, generate_entropies
 from nerdle_solver.combinations import get_sol_list, get_comb_list
-from nerdle_solver.convert import eqs_to_array
-
-
-# Windows Sillyness
-if __name__ == '__main__':
-    freeze_support()
+from nerdle_solver.convert import array_to_eq, eqs_to_array, unpack_array
 
 comb = get_comb_list(8)
 sols = get_sol_list(8)
@@ -37,4 +32,5 @@ if __name__ == '__main__':
 
     print("Best 100 Starting Moves:")
     for guess, entropy in entropies[:100]:
-        print(f'{comb[guess]}: {-entropy}')
+        eq = array_to_eq(unpack_array(guess, ord=15))
+        print(f'{eq}: {-entropy}')

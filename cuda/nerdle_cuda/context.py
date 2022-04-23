@@ -13,6 +13,7 @@ dll_obj = ctypes.CDLL(dll_name)
 
 SLOTS_PTR = ctypes.POINTER(ctypes.c_uint8)
 CLUES_PTR = ctypes.POINTER(ctypes.c_uint16)
+ENTROPY_PTR = ctypes.POINTER(ctypes.c_double)
 
 class CudaLib:
     def __init__(self, lib):
@@ -35,7 +36,39 @@ class CudaLib:
             CLUES_PTR]
         self.generate_clueg.restype = ctypes.c_int
 
+        self.generate_entropies = lib.generate_entropies
+        self.generate_entropies.argtypes = [ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ENTROPY_PTR
+        ]
+
 cuda_lib = CudaLib(dll_obj)
+
+def _numpy_to_ptr(array, name, ndims, dtype, ptr_type, req_dims=None):
+    assert len(array.shape) == ndims, f"{name} must be {ndims}D"
+    assert array.dtype == dtype, f"{name} dtype must be {dtype}"
+    if req_dims is not None:
+        assert len(req_dims) == len(array.shape), \
+            f"{name} req dim len ({len(req_dims)}) doesn't match array dims ({len(array.shape)})"
+        for dim_id, (req_dim, act_dim) in enumerate(zip(req_dims, array.shape)):
+            if req_dim is None:
+                continue
+            op, req_dim = req_dim
+            if op == '>':
+                assert act_dim > req_dim, f'{name} dim mismatch on number {dim_id}, ({act_dim} <= {req_dim})'
+            if op == '<':
+                assert act_dim < req_dim, f'{name} dim mismatch on number {dim_id}, ({act_dim} >= {req_dim})'
+            if op == '=':
+                assert act_dim == req_dim, f'{name} dim mismatch on number {dim_id}, ({act_dim} != {req_dim})'
+            if op == '>=':
+                assert act_dim >= req_dim, f'{name} dim mismatch on number {dim_id}, ({act_dim} < {req_dim})'
+            if op == '<=':
+                assert act_dim <= req_dim, f'{name} dim mismatch on number {dim_id}, ({act_dim} > {req_dim})'
+    assert 'data' in array.__array_interface__, f"{name}: no data available"
+    assert array.__array_interface__['strides'] == None, f"{name}: strides not supported"
+    ptr = ctypes.cast(array.__array_interface__['data'][0], ptr_type)
+    return ptr
 
 class PythonClueContext:
     def __init__(self, num_guesses, num_secrets):
@@ -50,30 +83,13 @@ class PythonClueContext:
     def generate_clue(self, guesses, secrets, clues):
         assert self.ctx_handle != ctypes.c_void_p(), "Context not initialized"
 
-        assert len(secrets.shape) == 2, "secrets must be 2D"
-        assert len(guesses.shape) == 2, "guesses must be 2D"
-        assert len(clues.shape) == 2, "clues must be 2D"
+        guess_ptr = _numpy_to_ptr(guesses, "guesses", 2, np.uint8, SLOTS_PTR, (None, ('=', NUM_SLOTS)))
+        secret_ptr = _numpy_to_ptr(secrets, "secrets", 2, np.uint8, SLOTS_PTR, (None, ('=', NUM_SLOTS)))
 
-        assert secrets.dtype == np.uint8, "array dtype must be uint8"
-        assert guesses.dtype == np.uint8, "array dtype must be uint8"
-        assert clues.dtype == np.uint16, "array dtype must be uint8"
-
-        assert secrets.shape[1] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
-        assert guesses.shape[1] == NUM_SLOTS, f"last dim must be NUM_SLOTS ({NUM_SLOTS})"
-        assert clues.shape[0] >= guesses.shape[0] and clues.shape[1] >= secrets.shape[0], \
-            "clues is not large enough"
-
-        assert secrets.__array_interface__['strides'] == None, "strides not supported"
-        assert guesses.__array_interface__['strides'] == None, "strides not supported"
-        assert clues.__array_interface__['strides'] == None, "strides not supported"
-
-        assert 'data' in secrets.__array_interface__, "no data available"
-        assert 'data' in guesses.__array_interface__, "no data available"
-        assert 'data' in clues.__array_interface__, "no data available"
-
-        secret_ptr = ctypes.cast(secrets.__array_interface__['data'][0], SLOTS_PTR)
-        guess_ptr = ctypes.cast(guesses.__array_interface__['data'][0], SLOTS_PTR)
-        clue_ptr = ctypes.cast(clues.__array_interface__['data'][0], CLUES_PTR)
+        clue_ptr = CLUES_PTR()
+        if clues is not None:
+            clue_ptr = _numpy_to_ptr(clues, "clues", 2, np.uint16, CLUES_PTR,
+                (('>=', guesses.shape[0]), ('>=', secrets.shape[0])))
 
         retval = cuda_lib.generate_clueg(
             self.ctx_handle,
@@ -85,6 +101,16 @@ class PythonClueContext:
 
         if retval < 0:
             raise RuntimeError(f"CUDA lib returned nonzero: {retval}")
+
+    def generate_entropies(self, guesses, secrets, entropies):
+        assert self.ctx_handle != ctypes.c_void_p(), "Context not initialized"
+
+        entropy_ptr = _numpy_to_ptr(entropies, 'entropies', 1, np.double, ENTROPY_PTR, (('=',guesses.shape[0]),))
+
+        self.generate_clue(guesses, secrets, None)
+        cuda_lib.generate_entropies(self.ctx_handle, guesses.shape[0], secrets.shape[0], entropy_ptr)
+        if np.isnan(entropies).any():
+            raise RuntimeError("Overflow on GPU Kernel Counts")
 
     def __exit__(self, exc_type, exc_value, traceback):
         cuda_lib.free_context(self.ctx_handle)

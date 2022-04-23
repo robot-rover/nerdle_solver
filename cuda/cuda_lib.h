@@ -14,6 +14,8 @@ typedef struct {
     // Clues
     uint16_t *d_clues;
     size_t clues_pitch;
+    // Entropies
+    double *d_entropies;
 } ClueContext;
 
 #ifdef __cplusplus
@@ -23,6 +25,7 @@ extern "C" {
 ClueContext DLL_EXPORT *create_context(uint32_t num_secret, uint32_t num_guess);
 void DLL_EXPORT free_context(ClueContext *ctx);
 int DLL_EXPORT generate_clueg(ClueContext *ctx, uint8_t *secret_eqs, uint32_t num_secret, uint8_t *guess_eqs, uint32_t num_guess, uint16_t *clue_arr);
+int DLL_EXPORT generate_entropies(ClueContext *ctx, uint32_t num_guess, uint32_t num_secret, double *entropies);
 void DLL_EXPORT helloworld();
 
 #ifdef __cplusplus

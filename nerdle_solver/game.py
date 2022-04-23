@@ -4,12 +4,13 @@ from nerdle_solver.equation import parse, validate
 from nerdle_solver.clues import generate_clue, print_color_guess
 
 class NerdleGame:
-    def __init__(self, player=None, secret=None):
+    def __init__(self, player=None, secret=None, num_guess=6):
         self.secret = secret if secret is not None else choice(get_sol_list(8))
         self.player = player if player is not None else TerminalNerdlePlayer()
+        self.num_guess = num_guess
 
     def start_game(self):
-        guesses_remaining = 6
+        guesses_remaining = self.num_guess
         print("Secret is",self.secret)
         while True:
             guesses_remaining = guesses_remaining -1
