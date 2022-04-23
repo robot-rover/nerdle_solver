@@ -8,14 +8,13 @@ class NerdleGame:
         self.secret = secret if secret is not None else choice(get_sol_list(8))
         self.player = player if player is not None else TerminalNerdlePlayer()
         self.num_guess = num_guess
+        self.guess_remaining = num_guess
 
     def start_game(self):
-        guesses_remaining = self.num_guess
-        print("Secret is",self.secret)
         while True:
-            guesses_remaining = guesses_remaining -1
+            self.guess_remaining = self.guess_remaining -1
             while True:
-                guess = self.player.get_guess(guesses_remaining)
+                guess = self.player.get_guess(self.guess_remaining)
                 if validate(parse(guess)):
                     break
                 self.player.bad_guess()
@@ -23,9 +22,10 @@ class NerdleGame:
             self.player.give_clue(guess, clue)
 
             if guess == str(self.secret):
-                self.player.win(6-guesses_remaining)
+                self.player.win(6-self.guess_remaining)
                 break
-            elif guesses_remaining == 0:
+            elif self.guess_remaining == 0:
+                self.guess_remaining = -1
                 self.player.lose(self.secret)
                 break
 

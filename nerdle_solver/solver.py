@@ -9,19 +9,20 @@ from nerdle_solver.entropy import generate_entropies
 
 
 class AutoNerdlePlayer:
-    def __init__(self):
+    def __init__(self, debug=False):
+        self.debug = debug
         self.history = []
         self.is_win = None
         self.possible_secrets = get_sol_list()
         self.guess_array = get_comb_array()
 
     def give_clue(self, guess, clue):
-        print(f"Clue:  {clue}")
+        if self.debug:
+            print(f"Clue:  {clue}")
         self.history.append((guess, clue))
         self.possible_secrets = filter_secrets(guess, clue, self.possible_secrets)
-        print(len(self.possible_secrets), "secrets left")
-        if len(self.possible_secrets) <= 10:
-            print(self.possible_secrets)
+        if self.debug:
+            print(len(self.possible_secrets), "secrets left")
 
     def get_guess(self, guesses_left):
         if len(self.history) == 0:
@@ -35,20 +36,27 @@ class AutoNerdlePlayer:
             guess = array_to_eq(unpack_array(np.array(best_idx, dtype=np.uint64),ord=15))
             entropies_list = list(entropies.items())
             entropies_list.sort(key=lambda item: item[1], reverse=True)
-            for name_packed, entropy in entropies_list[:50]:
-                eq_str = array_to_eq(unpack_array(np.array(name_packed, dtype=np.uint64),ord=15))
-                print(f'{eq_str}: {-entropy}')
+            if self.debug:
+                for name_packed, entropy in entropies_list[:10]:
+                    eq_str = array_to_eq(unpack_array(np.array(name_packed, dtype=np.uint64),ord=15))
+                    print(f'{eq_str}: {-entropy}')
 
-        print(f"Guess: {guess}")
+        if self.debug:
+            print(f"Guess: {guess}")
+
         return guess
 
     def bad_guess(self, bad_guess):
         raise RuntimeError(f'Bad Guess: {bad_guess}, (hist: {self.history})')
 
     def win(self, num_guesses):
+        if self.debug:
+            print(f'Win({num_guesses})')
         self.is_win = True
 
     def lose(self, secret):
+        if self.debug:
+            print(f'Lose()')
         self.is_win = False
 
     @staticmethod

@@ -1,9 +1,6 @@
-from errno import EEXIST
-from faulthandler import disable
 from math import log2
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
-from tkinter import E
 
 import numpy as np
 from tqdm import tqdm
@@ -73,12 +70,13 @@ def _generate_entropies_gpu(guess_array, secret_array, in_dict):
             entropies.extend(generator)
     return entropies
 
-def generate_entropies(guess_array, secret_array, batch_size=1000, progress=True, in_dict=False):
+def generate_entropies(guess_array, secret_array, batch_size=1000, progress=False, in_dict=False):
     try:
         from nerdle_cuda import PythonClueContext
-        if secret_array.shape[0] <= 100:
+        if secret_array.shape[0] <= 200:
             return _generate_entropies_gpu(guess_array, secret_array, in_dict)
         else:
+            print('generate_entropies slow path')
             return _generate_entropies_gpu_clue(guess_array, secret_array, batch_size, progress, in_dict)
     except ImportError:
         _generate_entropies_npy(guess_array, secret_array, batch_size, progress, in_dict)

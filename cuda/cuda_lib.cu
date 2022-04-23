@@ -10,7 +10,7 @@
 
 #define NUM_SLOTS 8
 #define SYMBOL_ORD 15
-#define COUNT_SLOTS 100
+#define COUNT_SLOTS 200
 
 
 #ifdef CLUE_DEBUG
