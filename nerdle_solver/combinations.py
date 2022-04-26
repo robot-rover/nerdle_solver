@@ -4,7 +4,7 @@ import re
 import string
 
 import numpy as np
-from nerdle_solver.convert import eqs_to_array
+from nerdle_solver.convert import eqs_to_array, pack_array
 
 from nerdle_solver.equation import parse, evaluate
 
@@ -51,7 +51,7 @@ def recurse(stack, counts):
                 counts.answers.append(text)
 
 
-def get_comb_list(slots=8):
+def _get_comb_list(slots=8):
     cache_path = f'combinations{slots}.txt'
     if not os.path.exists(cache_path):
         print('Generating Combinations...')
@@ -63,29 +63,15 @@ def get_comb_list(slots=8):
         with open(cache_path, 'r') as cache_file:
             return cache_file.read().splitlines()
 
-def get_comb_array(slots=8):
-    cache_path = f'combinations{slots}.npy'
-    if not os.path.exists(cache_path):
-        comb_list = get_comb_list(slots)
-        comb_array = eqs_to_array(comb_list)
-        np.save(cache_path, comb_array, allow_pickle=False)
-        return comb_array
-    else:
-        return np.load(cache_path, allow_pickle=False)
-
-def get_sol_array(slots=8):
-    cache_path = f'solutions{slots}.npy'
-    if not os.path.exists(cache_path):
-        sols_list = get_sol_list(slots)
-        sols_array = eqs_to_array(sols_list)
-        np.save(cache_path, sols_array, allow_pickle=False)
-        return sols_array
-    else:
-        return np.load(cache_path, allow_pickle=False)
-
-def get_sol_list(slots=8):
-    comb = get_comb_list(slots)
+def _get_sol_list(comb_list):
     leading_zeroes = re.compile(r'(?:^|\D)0\d')
     zero_operator = re.compile(r'(?:^|\D)0+(?:$|\D)')
-    sol = [ans for ans in comb if not leading_zeroes.search(ans) if not zero_operator.search(ans)]
+    sol = [ans for ans in comb_list if not leading_zeroes.search(ans) if not zero_operator.search(ans)]
     return sol
+
+COM_LIST = _get_comb_list(8)
+COM_ARRAY = eqs_to_array(COM_LIST)
+COM_PACKED = pack_array(COM_ARRAY, 15, dtype=np.uint64)
+SOL_LIST = _get_sol_list(COM_LIST)
+SOL_ARRAY = eqs_to_array(SOL_LIST)
+SOL_PACKED = pack_array(SOL_ARRAY, 15, dtype=np.uint64)

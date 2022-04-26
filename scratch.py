@@ -1,14 +1,15 @@
 from struct import unpack
 import sys
+from nerdle_cuda.context import PythonCluePool
+from nerdle_solver.combinations import COM_ARRAY, SOL_ARRAY
 
 from nerdle_solver.entropy import expected_entropy, generate_entropies
-from nerdle_solver.combinations import get_sol_list, get_comb_list
 from nerdle_solver.convert import array_to_eq, eqs_to_array, unpack_array
+from simulate import BATCH_SIZE
 
-comb = get_comb_list(8)
-sols = get_sol_list(8)
+BATCH_SIZE = 1000
+
 entropies = []
-secret_array = eqs_to_array(sols)
 
 def make_iter(guess_strs, clues, chunk_begin, num_secret):
     def do_iter(idx):
@@ -25,9 +26,10 @@ if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'quiet':
         show_progress = False
     entropies = []
-    guess_array = eqs_to_array(comb)
-    secret_array = eqs_to_array(sols)
-    entropies = generate_entropies(guess_array, secret_array, progress=True)
+    guess_array = COM_ARRAY
+    secret_array = SOL_ARRAY
+    with PythonCluePool(((BATCH_SIZE,secret_array.shape[0]),)) as pool:
+        entropies = generate_entropies(guess_array, secret_array, batch_size=BATCH_SIZE, progress=True, pool=pool)
     entropies.sort(key=lambda tup: tup[1], reverse=True)
 
     print("Best 100 Starting Moves:")

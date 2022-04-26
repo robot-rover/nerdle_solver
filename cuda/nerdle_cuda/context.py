@@ -1,4 +1,5 @@
 import ctypes
+import threading
 import win32api
 import win32con
 import os
@@ -71,18 +72,96 @@ def _numpy_to_ptr(array, name, ndims, dtype, ptr_type, req_dims=None):
     ptr = ctypes.cast(array.__array_interface__['data'][0], ptr_type)
     return ptr
 
-class PythonClueContext:
+class PythonCluePool:
+    def __init__(self, dim_list):
+        self.dim_list = dim_list
+        self.handles = None
+        self.is_open = False
+        self.lock = False
+
+    def open(self):
+        assert not self.is_open
+        self.is_open = True
+        self.handles = [
+            PythonClueHandle(x, y) for x, y in self.dim_list
+        ]
+        for handle in self.handles:
+            handle.open()
+
+    def close(self):
+        assert self.is_open
+        self.is_open = False
+        for handle in self.handles:
+            handle.close()
+        self.handles = None
+        assert not self.lock
+
+    def __enter__(self):
+        self.open()
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def lock_pool(self):
+        assert self.is_open
+        assert not self.lock
+        self.lock = True
+
+    def release_pool(self):
+        assert self.is_open
+        assert self.lock
+        self.lock = False
+
+
+
+class PythonClueHandle:
     def __init__(self, num_guesses, num_secrets):
         self.num_secrets = num_secrets
         self.num_guesses = num_guesses
-        self.ctx_handle = ctypes.c_void_p()
+        self.ctx_handle = None
+
+    def open(self):
+        assert self.ctx_handle is None
+        self.ctx_handle = cuda_lib.create_context(self.num_guesses, self.num_secrets)
+
+    def close(self):
+        assert self.ctx_handle is not None
+        cuda_lib.free_context(self.ctx_handle)
+        self.ctx_handle = None
 
     def __enter__(self):
-        self.ctx_handle = cuda_lib.create_context(self.num_guesses, self.num_secrets)
+        self.open()
         return self
 
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+class PythonClueContext:
+    def __init__(self, num_guesses, num_secrets, pool):
+        self.num_guesses = num_guesses
+        self.num_secrets = num_secrets
+        self.handle = None
+        assert isinstance(pool, PythonCluePool), f"pool must be a PythonCluePool, not {pool.__class__}"
+        self.pool = pool
+
+    def __enter__(self):
+        assert self.handle is None
+        self.pool.lock_pool()
+        for handle in self.pool.handles:
+            if handle.num_guesses >= self.num_guesses and handle.num_secrets >= self.num_secrets:
+                self.handle = handle
+                break
+        assert self.handle is not None, "No suitable context handle found"
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        assert self.handle is not None
+        self.pool.release_pool()
+        self.handle = None
+
     def generate_clue(self, guesses, secrets, clues):
-        assert self.ctx_handle != ctypes.c_void_p(), "Context not initialized"
+        assert self.handle != None, "Context not initialized"
 
         guess_ptr = _numpy_to_ptr(guesses, "guesses", 2, np.uint8, SLOTS_PTR, (None, ('=', NUM_SLOTS)))
         secret_ptr = _numpy_to_ptr(secrets, "secrets", 2, np.uint8, SLOTS_PTR, (None, ('=', NUM_SLOTS)))
@@ -93,7 +172,7 @@ class PythonClueContext:
                 (('>=', guesses.shape[0]), ('>=', secrets.shape[0])))
 
         retval = cuda_lib.generate_clueg(
-            self.ctx_handle,
+            self.handle.ctx_handle,
             guess_ptr,
             guesses.shape[0],
             secret_ptr,
@@ -104,21 +183,17 @@ class PythonClueContext:
             raise RuntimeError(f"CUDA lib returned nonzero: {retval}")
 
     def generate_entropies(self, guesses, secrets, entropies, use_sort_alg=False):
-        assert self.ctx_handle != ctypes.c_void_p(), "Context not initialized"
+        assert self.handle is not None, "Context not initialized"
 
-        entropy_ptr = _numpy_to_ptr(entropies, 'entropies', 1, np.double, ENTROPY_PTR, (('=',guesses.shape[0]),))
+        entropy_ptr = _numpy_to_ptr(entropies, 'entropies', 1, np.double, ENTROPY_PTR, (('>=',guesses.shape[0]),))
 
         self.generate_clue(guesses, secrets, None)
-        retval = cuda_lib.generate_entropies(self.ctx_handle, guesses.shape[0], secrets.shape[0], entropy_ptr, use_sort_alg)
+        retval = cuda_lib.generate_entropies(self.handle.ctx_handle, guesses.shape[0], secrets.shape[0], entropy_ptr, use_sort_alg)
         if retval < 0:
             raise RuntimeError(f"CUDA lib returned nonzero: {retval}")
 
         if np.isnan(entropies).any():
             raise RuntimeError("Overflow on GPU Kernel Counts")
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        cuda_lib.free_context(self.ctx_handle)
-        self.ctx_handle = ctypes.c_void_p()
 
     @staticmethod
     def test_binding():

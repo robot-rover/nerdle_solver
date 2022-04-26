@@ -5,6 +5,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map, process_map
+from nerdle_cuda.context import PythonClueContext
 from nerdle_solver.clues import generate_cluev
 from nerdle_solver.convert import array_to_clues, eqs_to_array, pack_array
 
@@ -23,7 +24,7 @@ def expected_entropyv(clue_codes, guesses, num_secret):
     with ThreadPool() as pool:
         return pool.map(do_iter, range(clue_codes.shape[0]))
 
-def _generate_entropies_npy(guess_array, secret_array, batch_size, progress, in_dict):
+def _generate_entropies_npy(guess_array, secret_array, *args, progress, in_dict):
     guess_packed = pack_array(guess_array, 15, dtype=np.uint64)
     num_secret = secret_array.shape[0]
     def do_iter(idx):
@@ -36,7 +37,7 @@ def _generate_entropies_npy(guess_array, secret_array, batch_size, progress, in_
     else:
         return list(tuples)
 
-def _generate_entropies_gpu_clue(guess_array, secret_array, batch_size, progress, in_dict):
+def _generate_entropies_gpu_clue(guess_array, secret_array, *args, batch_size, progress, in_dict):
     from nerdle_cuda import PythonClueContext
     num_guess = guess_array.shape[0]
     guess_packed = pack_array(guess_array, 15, dtype=np.uint64)
@@ -54,14 +55,14 @@ def _generate_entropies_gpu_clue(guess_array, secret_array, batch_size, progress
                 entropies.extend(tuples)
     return entropies
 
-def _generate_entropies_gpu(guess_array, secret_array, in_dict, gpu_sorted, batch_size, progress):
-    from nerdle_cuda import PythonClueContext
+def _generate_entropies_gpu(guess_array, secret_array, *args, batch_size, in_dict, gpu_sorted, progress, pool, guess_packed):
     num_guess = guess_array.shape[0]
-    guess_packed = pack_array(guess_array, 15, dtype=np.uint64)
+    if guess_packed is None:
+        guess_packed = pack_array(guess_array, 15, dtype=np.uint64)
     num_secret = secret_array.shape[0]
     entropy_array = np.zeros((batch_size))
     entropies = {} if in_dict else []
-    with PythonClueContext(batch_size, num_secret) as ctx:
+    with PythonClueContext(batch_size, num_secret, pool=pool) as ctx:
         for chunk_begin in tqdm(range(0, num_guess, batch_size), disable=not progress):
             chunk_end = min(chunk_begin + batch_size, num_guess)
 
@@ -74,9 +75,13 @@ def _generate_entropies_gpu(guess_array, secret_array, in_dict, gpu_sorted, batc
                 entropies.extend(generator)
     return entropies
 
-def generate_entropies(guess_array, secret_array, batch_size=1000, progress=False, in_dict=False):
+def generate_entropies(guess_array, secret_array, *args, batch_size=1000, gpu_sorted=True, progress=False, in_dict=False, pool=None, guess_packed=None):
     try:
         from nerdle_cuda import PythonClueContext
-        return _generate_entropies_gpu(guess_array, secret_array, in_dict, gpu_sorted=True, batch_size=batch_size, progress=progress)
+        if secret_array.shape[0] > 1000:
+            print("WARN: Slow Path")
+            return _generate_entropies_gpu(guess_array, secret_array, in_dict=in_dict, gpu_sorted=gpu_sorted, batch_size=batch_size, progress=progress, pool=pool, guess_packed=guess_packed)
+        else:
+            return _generate_entropies_gpu(guess_array, secret_array, in_dict=in_dict, gpu_sorted=gpu_sorted, batch_size=guess_array.shape[0], progress=progress, pool=pool, guess_packed=guess_packed)
     except ImportError:
-        _generate_entropies_npy(guess_array, secret_array, batch_size, progress, in_dict)
+        _generate_entropies_npy(guess_array, secret_array, batch_size=batch_size, progress=progress, in_dict=in_dict)

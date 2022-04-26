@@ -1,11 +1,11 @@
 from random import choice
-from nerdle_solver.combinations import get_sol_list, get_comb_list
+from nerdle_solver.combinations import SOL_LIST
 from nerdle_solver.equation import parse, validate
 from nerdle_solver.clues import generate_clue, print_color_guess
 
 class NerdleGame:
     def __init__(self, player=None, secret=None, num_guess=6):
-        self.secret = secret if secret is not None else choice(get_sol_list(8))
+        self.secret = secret if secret is not None else choice(SOL_LIST)
         self.player = player if player is not None else TerminalNerdlePlayer()
         self.num_guess = num_guess
         self.guess_remaining = num_guess

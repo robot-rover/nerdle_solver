@@ -2,6 +2,7 @@ import unittest
 
 import numpy as np
 import sys
+from nerdle_cuda.context import PythonCluePool
 
 from nerdle_solver.convert import array_to_clues, array_to_eqs, eq_to_array, eqs_to_array, pack_array, packed_array_to_clues, unpack_array
 
@@ -9,6 +10,15 @@ from ..clues import generate_clue, generate_cluev
 from nerdle_cuda import PythonClueContext
 
 class TestClue(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.pool = PythonCluePool(((8,8),))
+        cls.pool.open()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.pool.close()
+
     def test(self):
         cases = [
             # Secret      Guess       Clue
@@ -57,7 +67,7 @@ class TestClue(unittest.TestCase):
         eq_array = eqs_to_array([case[0] for case in cases])
         guess_arr = eqs_to_array([guess])
         clues = np.zeros((1, len(cases)), dtype=np.uint16)
-        with PythonClueContext(1, len(cases)) as ctx:
+        with PythonClueContext(1, len(cases), pool=TestClue.pool) as ctx:
             ctx.generate_clue(guess_arr, eq_array, clues)
         clues_str = packed_array_to_clues(clues.squeeze())
         for idx, clue in enumerate(clues_str):
@@ -85,8 +95,8 @@ class TestClue(unittest.TestCase):
         ]
 
         gpu_clues_packed = np.zeros((len(eqs), len(eqs)), dtype=np.uint16)
-        with PythonClueContext(len(eqs), len(eqs)) as ctx:
-           ctx.generate_clue(eqs_array, eqs_array, gpu_clues_packed)
+        with PythonClueContext(len(eqs), len(eqs), pool=TestClue.pool) as ctx:
+           ctx.generate_clue(eqs_array, eqs_array, gpu_clues_packed, )
 
         gpu_clues = [
             array_to_clues(unpack_array(gpu_clues_row)) for gpu_clues_row in gpu_clues_packed

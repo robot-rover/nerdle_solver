@@ -3,6 +3,8 @@
 #define DLL_EXPORT __declspec(dllexport)
 
 typedef struct {
+    // Computation Stream
+    cudaStream_t stream;
     // Secrets
     uint8_t *d_secret;
     size_t secret_pitch;

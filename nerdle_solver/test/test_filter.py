@@ -1,6 +1,6 @@
 import unittest
 
-from nerdle_solver.combinations import get_comb_list
+from nerdle_solver.combinations import COM_LIST
 
 from ..clues import filter_secrets
 
@@ -8,7 +8,7 @@ from ..clues import filter_secrets
 
 class TestFilter(unittest.TestCase):
     def test(self):
-        possible_secrets = get_comb_list(8)
+        possible_secrets = COM_LIST
         solution1 = ['64/01=64', '64/02=32', '64/04=16', '64/08=08', '64/16=04', '64/32=02', '64/64=01']
         solution2 = [
             '12+30=42', '12+31=43', '12+32=44', '12+33=45', '12+34=46',

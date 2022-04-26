@@ -1,24 +1,37 @@
 from multiprocessing import cpu_count
 from multiprocessing.dummy import freeze_support
+import threading
 import numpy as np
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map, thread_map
+from nerdle_cuda.context import PythonCluePool
 from nerdle_solver.game import NerdleGame
 from nerdle_solver import solver
-from nerdle_solver.combinations import get_sol_list
+from nerdle_solver.combinations import COM_LIST, SOL_LIST
 import matplotlib.pyplot as plt
 
 PLAYER = solver.AutoNerdlePlayer
-SOLUTIONS = get_sol_list()
+BATCH_SIZE = 1000
+SOLUTIONS = SOL_LIST[:1000]
 PARALLEL = True
 NAME = 'stats'
 SHOW_BAR = True
 SAVE_ESTIMATOR = False
+DEBUG=False
 
 estimator = []
+_TLS = threading.local()
+def get_pool():
+    if not hasattr(_TLS, "pool"):
+        _TLS.pool = PythonCluePool([
+            (BATCH_SIZE, len(SOL_LIST)),
+            (len(COM_LIST), 1000)
+        ])
+        _TLS.pool.open()
+    return _TLS.pool
 
 def do_iter(solution):
-    game = NerdleGame(PLAYER(), solution)
+    game = NerdleGame(PLAYER(pool=get_pool(), debug=DEBUG), solution)
     game.start_game()
     if SAVE_ESTIMATOR:
         for tup in enumerate(reversed(game.player.estimator),1):
@@ -34,7 +47,7 @@ if __name__ == "__main__":
     stats = np.zeros((7), dtype=np.int64)
 
     if PARALLEL:
-        results = thread_map(do_iter, SOLUTIONS, max_workers=4, chunksize=1, disable=not SHOW_BAR)
+        results = thread_map(do_iter, SOLUTIONS, max_workers=8, chunksize=1, disable=not SHOW_BAR)
     else:
         results = []
         to_iter = SOLUTIONS

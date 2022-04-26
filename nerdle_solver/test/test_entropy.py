@@ -2,6 +2,7 @@ import unittest
 from math import log2
 
 import numpy as np
+from nerdle_cuda.context import PythonCluePool
 from nerdle_solver.clues import generate_clue, generate_cluev
 
 from nerdle_solver.convert import eq_to_array, eqs_to_array, pack_array
@@ -9,6 +10,16 @@ from nerdle_solver.convert import eq_to_array, eqs_to_array, pack_array
 from ..entropy import expected_entropy, expected_entropyv, generate_entropies
 
 class TestEntropy(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pool = PythonCluePool(((5,5),))
+        cls.pool.open()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.pool.close()
+
     @staticmethod
     def calc_E(counts, num_secret):
         ps = (n/num_secret for n in counts)
@@ -51,7 +62,7 @@ class TestEntropy(unittest.TestCase):
             clues[guess_idx,:] = pack_array(generate_cluev(eqs, eqs[guess_idx]))
         entropies_exp = expected_entropyv(clues, packed_eqs, eqs.shape[0])
 
-        entropies_act = generate_entropies(eqs, eqs, progress=False)
+        entropies_act = generate_entropies(eqs, eqs, progress=False, gpu_sorted=False, pool=TestEntropy.pool)
         np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyg")
 
     def test_gpu_sort(self):
@@ -62,5 +73,5 @@ class TestEntropy(unittest.TestCase):
             clues[guess_idx,:] = pack_array(generate_cluev(eqs, eqs[guess_idx]))
         entropies_exp = expected_entropyv(clues, packed_eqs, eqs.shape[0])
 
-        entropies_act = generate_entropies(eqs, eqs, progress=False, gpu_sorted=True)
+        entropies_act = generate_entropies(eqs, eqs, progress=False, gpu_sorted=True, pool=TestEntropy.pool)
         np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyg")
