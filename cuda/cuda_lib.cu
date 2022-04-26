@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <cuda_runtime.h>
 #include <cassert>
+#include <cub/cub.cuh>
 #include "cuda_lib.h"
 
 // #define CLUE_DEBUG
@@ -26,6 +27,41 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
       if (abort) exit(code);
    }
+}
+
+__global__ void sorted_counts_kernel(uint16_t *clues, uint32_t clue_pitch, uint32_t num_guess, uint32_t num_secret, double* entropies) {
+    uint32_t guess_idx = blockIdx.x;
+    uint32_t counted = 1;
+    uint16_t *clue_offset = (uint16_t*)(((uint8_t*)clues) + guess_idx * clue_pitch);
+    double entropy = 0;
+
+    for (uint32_t i = 1; i < num_secret; i++) {
+#ifdef COUNTS_DEBUG
+        printf("(%d): Clue ID: %d\n", guess_idx, clue_offset[i-1]);
+#endif
+        if (clue_offset[i] == clue_offset[i-1]) {
+            counted += 1;
+        } else {
+            double probability = ((double)counted) / ((double)num_secret);
+            entropy -= probability * log2(probability);
+#ifdef COUNTS_DEBUG
+            printf("(%d): Prob for clue %d: %d/%d = %f\n", guess_idx, clue_offset[i-1], counted, num_secret, probability);
+#endif
+            counted = 1;
+        }
+    }
+    double probability = ((double)counted) / ((double)num_secret);
+    entropy -= probability * log2(probability);
+#ifdef COUNTS_DEBUG
+
+    printf("(%d): Clue ID: %d\n", guess_idx, clue_offset[num_secret-1]);
+    printf("(%d): Prob for clue %d: %d/%d = %f\n", guess_idx, clue_offset[num_secret-1], counted, num_secret, probability);
+#endif
+
+#ifdef COUNTS_DEBUG
+    printf("(%d): Result: %f\n", guess_idx, entropy);
+#endif
+    entropies[guess_idx] = entropy;
 }
 
 typedef struct {
@@ -222,10 +258,31 @@ extern "C" ClueContext* create_context(uint32_t num_guess, uint32_t num_secret) 
     // Size of host eqs
     size_t eq_width = sizeof(uint8_t) * NUM_SLOTS;
 
+    size_t dont_care;
     gpuErrchk(cudaMallocPitch((void **)&ctx->d_guess, &ctx->guess_pitch, eq_width, num_guess));
     gpuErrchk(cudaMallocPitch((void **)&ctx->d_secret, &ctx->secret_pitch, eq_width, num_secret));
     gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues, &ctx->clues_pitch, sizeof(uint16_t) * num_secret, num_guess));
+    gpuErrchk(cudaMallocPitch((void **)&ctx->d_clues_alt, &dont_care, sizeof(uint16_t) * num_secret, num_guess));
+    assert(dont_care == ctx->clues_pitch);
+
     gpuErrchk(cudaMalloc((void **)&ctx->d_entropies, sizeof(double) * num_guess));
+
+    uint32_t *scratch_begin = (uint32_t*)malloc(num_guess * sizeof(uint32_t));
+    uint32_t *scratch_end = (uint32_t*)malloc(num_guess * sizeof(uint32_t));
+    for (uint32_t i = 0; i <= num_guess; i++) {
+        uint32_t begin_offset = i * (ctx->clues_pitch / sizeof(uint16_t));
+        scratch_begin[i] = begin_offset;
+        scratch_end[i] = begin_offset + num_secret;
+#ifdef API_DEBUG
+        printf("API: segment %d in indexes [%d,%d)\n", i, begin_offset, begin_offset + num_secret);
+#endif
+    }
+    gpuErrchk(cudaMalloc((void **)&ctx->d_clue_begin, sizeof(uint32_t) * num_guess));
+    gpuErrchk(cudaMalloc((void **)&ctx->d_clue_end, sizeof(uint32_t) * num_guess));
+    gpuErrchk(cudaMemcpy(ctx->d_clue_begin, scratch_begin, sizeof(uint32_t) * num_guess, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(ctx->d_clue_end, scratch_end, sizeof(uint32_t) * num_guess, cudaMemcpyHostToDevice));
+    free(scratch_begin);
+    free(scratch_end);
 
     gpuErrchk(cudaDeviceSynchronize());
 
@@ -237,25 +294,45 @@ extern "C" void free_context(ClueContext *ctx) {
     gpuErrchk(cudaFree(ctx->d_secret));
     gpuErrchk(cudaFree(ctx->d_guess));
     gpuErrchk(cudaFree(ctx->d_clues));
+    gpuErrchk(cudaFree(ctx->d_clues_alt));
     gpuErrchk(cudaFree(ctx->d_entropies));
+    gpuErrchk(cudaFree(ctx->d_clue_begin));
+    gpuErrchk(cudaFree(ctx->d_clue_end));
 
     gpuErrchk(cudaDeviceSynchronize());
 
     free(ctx);
 }
 
-extern "C" int generate_entropies(ClueContext *ctx, uint32_t num_guess, uint32_t num_secret, double *entropies) {
+extern "C" int generate_entropies(ClueContext *ctx, uint32_t num_guess, uint32_t num_secret, double *entropies, bool use_sort_alg) {
     if (num_guess > ctx->guess_alloc_rows) {
         return -1;
     }
     if (num_secret > ctx->secret_alloc_rows) {
         return -2;
     }
+    if (num_guess < 1) {
+        return -5;
+    }
+    if (num_secret < 1) {
+        return -6;
+    }
 
 #ifdef API_DEBUG
-    printf("CUDA: kernel launch with %d blocks of %d threads\n", num_guess, 1);
+    printf("API: kernel launch with %d blocks of %d threads\n", num_guess, 1);
 #endif
-    clue_counts_kernel<<<num_guess, 1>>>(ctx->d_clues, ctx->clues_pitch, num_guess, num_secret, ctx->d_entropies);
+    if (use_sort_alg) {
+        cub::DoubleBuffer<uint16_t> d_dbuf(ctx->d_clues, ctx->d_clues_alt);
+
+        void *d_temp_storage = NULL;
+        size_t temp_storage_size = 0;
+        cub::DeviceSegmentedRadixSort::SortKeys(d_temp_storage, temp_storage_size, d_dbuf, num_secret*num_guess, num_guess, ctx->d_clue_begin, ctx->d_clue_end, 0, 13);
+        gpuErrchk(cudaMalloc(&d_temp_storage, temp_storage_size));
+        cub::DeviceSegmentedRadixSort::SortKeys(d_temp_storage, temp_storage_size, d_dbuf, num_secret*num_guess, num_guess, ctx->d_clue_begin, ctx->d_clue_end, 0, 13);
+        sorted_counts_kernel<<<num_guess, 1>>>(d_dbuf.Current(), ctx->clues_pitch, num_guess, num_secret, ctx->d_entropies);
+    } else {
+        clue_counts_kernel<<<num_guess, 1>>>(ctx->d_clues, ctx->clues_pitch, num_guess, num_secret, ctx->d_entropies);
+    }
 
     gpuErrchk(cudaMemcpy(entropies, ctx->d_entropies, num_guess * sizeof(double), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaDeviceSynchronize());
@@ -276,6 +353,12 @@ extern "C" int generate_clueg(ClueContext *ctx, uint8_t *guess_eqs, uint32_t num
     }
     if (secret_eqs == NULL) {
         return -4;
+    }
+    if (num_guess < 1) {
+        return -5;
+    }
+    if (num_secret < 1) {
+        return -6;
     }
 
     // Copy to the device

@@ -40,7 +40,8 @@ class CudaLib:
         self.generate_entropies.argtypes = [ctypes.c_void_p,
             ctypes.c_uint32,
             ctypes.c_uint32,
-            ENTROPY_PTR
+            ENTROPY_PTR,
+            ctypes.c_bool
         ]
 
 cuda_lib = CudaLib(dll_obj)
@@ -102,13 +103,16 @@ class PythonClueContext:
         if retval < 0:
             raise RuntimeError(f"CUDA lib returned nonzero: {retval}")
 
-    def generate_entropies(self, guesses, secrets, entropies):
+    def generate_entropies(self, guesses, secrets, entropies, use_sort_alg=False):
         assert self.ctx_handle != ctypes.c_void_p(), "Context not initialized"
 
         entropy_ptr = _numpy_to_ptr(entropies, 'entropies', 1, np.double, ENTROPY_PTR, (('=',guesses.shape[0]),))
 
         self.generate_clue(guesses, secrets, None)
-        cuda_lib.generate_entropies(self.ctx_handle, guesses.shape[0], secrets.shape[0], entropy_ptr)
+        retval = cuda_lib.generate_entropies(self.ctx_handle, guesses.shape[0], secrets.shape[0], entropy_ptr, use_sort_alg)
+        if retval < 0:
+            raise RuntimeError(f"CUDA lib returned nonzero: {retval}")
+
         if np.isnan(entropies).any():
             raise RuntimeError("Overflow on GPU Kernel Counts")
 

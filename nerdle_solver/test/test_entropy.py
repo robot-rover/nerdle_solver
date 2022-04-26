@@ -53,3 +53,14 @@ class TestEntropy(unittest.TestCase):
 
         entropies_act = generate_entropies(eqs, eqs, progress=False)
         np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyg")
+
+    def test_gpu_sort(self):
+        eqs = eqs_to_array(TestEntropy.eqs)
+        packed_eqs = pack_array(eqs, ord=15, dtype=np.uint64)
+        clues = np.zeros((eqs.shape[0], eqs.shape[0]), dtype=np.uint16)
+        for guess_idx in range(eqs.shape[0]):
+            clues[guess_idx,:] = pack_array(generate_cluev(eqs, eqs[guess_idx]))
+        entropies_exp = expected_entropyv(clues, packed_eqs, eqs.shape[0])
+
+        entropies_act = generate_entropies(eqs, eqs, progress=False, gpu_sorted=True)
+        np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyg")

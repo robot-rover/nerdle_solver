@@ -27,7 +27,7 @@ if __name__ == '__main__':
     entropies = []
     guess_array = eqs_to_array(comb)
     secret_array = eqs_to_array(sols)
-    entropies = generate_entropies(guess_array, secret_array)
+    entropies = generate_entropies(guess_array, secret_array, progress=True)
     entropies.sort(key=lambda tup: tup[1], reverse=True)
 
     print("Best 100 Starting Moves:")

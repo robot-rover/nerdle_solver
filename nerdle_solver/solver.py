@@ -15,6 +15,7 @@ class AutoNerdlePlayer:
         self.is_win = None
         self.possible_secrets = get_sol_list()
         self.guess_array = get_comb_array()
+        self.estimator = []
 
     def give_clue(self, guess, clue):
         if self.debug:
@@ -23,6 +24,8 @@ class AutoNerdlePlayer:
         self.possible_secrets = filter_secrets(guess, clue, self.possible_secrets)
         if self.debug:
             print(len(self.possible_secrets), "secrets left")
+        if clue != 'gggggggg':
+            self.estimator.append(len(self.possible_secrets))
 
     def get_guess(self, guesses_left):
         if len(self.history) == 0:
@@ -52,6 +55,7 @@ class AutoNerdlePlayer:
     def win(self, num_guesses):
         if self.debug:
             print(f'Win({num_guesses})')
+            print(f'Estimator: {self.estimator}')
         self.is_win = True
 
     def lose(self, secret):
