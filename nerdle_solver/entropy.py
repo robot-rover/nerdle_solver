@@ -38,6 +38,7 @@ def _generate_entropies_npy(guess_array, secret_array, *args, progress, in_dict)
         return list(tuples)
 
 def _generate_entropies_gpu_clue(guess_array, secret_array, *args, batch_size, progress, in_dict):
+    # TODO: Should return np array if in_dict is False
     from nerdle_cuda import PythonClueContext
     num_guess = guess_array.shape[0]
     guess_packed = pack_array(guess_array, 15, dtype=np.uint64)
@@ -61,18 +62,18 @@ def _generate_entropies_gpu(guess_array, secret_array, *args, batch_size, in_dic
         guess_packed = pack_array(guess_array, 15, dtype=np.uint64)
     num_secret = secret_array.shape[0]
     entropy_array = np.zeros((batch_size))
-    entropies = {} if in_dict else []
+    entropies = {} if in_dict else np.zeros((num_guess))
     with PythonClueContext(batch_size, num_secret, pool=pool) as ctx:
         for chunk_begin in tqdm(range(0, num_guess, batch_size), disable=not progress):
             chunk_end = min(chunk_begin + batch_size, num_guess)
 
             ctx.generate_entropies(guess_array[chunk_begin:chunk_end,:], secret_array, entropy_array, use_sort_alg=gpu_sorted)
-            generator = ((packed_eq, entropy) for packed_eq, entropy in zip(guess_packed[chunk_begin:chunk_end], entropy_array))
 
             if in_dict:
+                generator = ((packed_eq, entropy) for packed_eq, entropy in zip(guess_packed[chunk_begin:chunk_end], entropy_array))
                 entropies.update(generator)
             else:
-                entropies.extend(generator)
+                entropies[chunk_begin:chunk_end] = entropy_array
     return entropies
 
 def generate_entropies(guess_array, secret_array, *args, batch_size=1000, gpu_sorted=True, progress=False, in_dict=False, pool=None, guess_packed=None):

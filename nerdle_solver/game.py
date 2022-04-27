@@ -15,6 +15,7 @@ class NerdleGame:
             self.guess_remaining = self.guess_remaining -1
             while True:
                 guess = self.player.get_guess(self.guess_remaining)
+                assert isinstance(guess, str), f'Bad guess type: {guess.__class__} for guess "{guess}"'
                 if validate(parse(guess)):
                     break
                 self.player.bad_guess()

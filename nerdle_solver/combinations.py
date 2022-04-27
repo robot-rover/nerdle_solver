@@ -69,9 +69,14 @@ def _get_sol_list(comb_list):
     sol = [ans for ans in comb_list if not leading_zeroes.search(ans) if not zero_operator.search(ans)]
     return sol
 
+def _get_sol_list_indexed(SOL_LIST, COM_LIST):
+    indexes = {eq: idx for idx, eq in enumerate(COM_LIST)}
+    return [(eq, indexes[eq]) for eq in SOL_LIST]
+
 COM_LIST = _get_comb_list(8)
 COM_ARRAY = eqs_to_array(COM_LIST)
 COM_PACKED = pack_array(COM_ARRAY, 15, dtype=np.uint64)
 SOL_LIST = _get_sol_list(COM_LIST)
+SOL_LIST_INDEXED = _get_sol_list_indexed(SOL_LIST, COM_LIST)
 SOL_ARRAY = eqs_to_array(SOL_LIST)
 SOL_PACKED = pack_array(SOL_ARRAY, 15, dtype=np.uint64)

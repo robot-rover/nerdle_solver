@@ -12,14 +12,16 @@ import matplotlib.pyplot as plt
 
 PLAYER = solver.AutoNerdlePlayer
 BATCH_SIZE = 1000
-SOLUTIONS = SOL_LIST[:1000]
+SOLUTIONS = SOL_LIST
 PARALLEL = True
-NAME = 'stats'
+NAME = 'estimator'
 SHOW_BAR = True
 SAVE_ESTIMATOR = False
+SAVE_ENTROPY = True
 DEBUG=False
 
 estimator = []
+entropy = []
 _TLS = threading.local()
 def get_pool():
     if not hasattr(_TLS, "pool"):
@@ -37,6 +39,10 @@ def do_iter(solution):
         for tup in enumerate(reversed(game.player.estimator),1):
             # req_guesses, num_remaining
             estimator.append(tup)
+
+    if SAVE_ENTROPY:
+        for tup in enumerate(game.player.entropy, 1):
+            entropy.append(tup)
 
     return 6 - game.guess_remaining - 1
 
@@ -69,6 +75,12 @@ if __name__ == "__main__":
     print()
     print(f'Expectation: {mean}')
 
-with open('estimator.csv', 'w') as estimator_file:
-    for req_guess, num_remain in estimator:
-        print(f'{req_guess},{num_remain}', file=estimator_file)
+if SAVE_ESTIMATOR:
+    with open('estimator.csv', 'w') as estimator_file:
+        for req_guess, num_remain in estimator:
+            print(f'{req_guess},{num_remain}', file=estimator_file)
+
+if SAVE_ENTROPY:
+    with open('entropy.csv', 'w') as entropy_file:
+        for num_guess, (avail, gained) in entropy:
+            print(f'{num_guess},{avail},{gained}', file=entropy_file)

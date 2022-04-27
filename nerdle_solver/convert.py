@@ -13,9 +13,12 @@ def eq_to_array(equation):
         array[x] = CHAR_TO_INDEX[char]
     return array
 
-def eqs_to_array(equations):
-    slots = len(equations[0])
-    array = np.zeros((len(equations), slots), dtype=np.uint8)
+def eqs_to_array(equations, slots=None, quantity=None):
+    if slots is None:
+        slots = len(equations[0])
+    if quantity is None:
+        quantity = len(equations)
+    array = np.zeros((quantity, slots), dtype=np.uint8)
     for x, eq in enumerate(equations):
         for y, char in enumerate(eq):
             array[x,y] = CHAR_TO_INDEX[char]

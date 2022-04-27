@@ -35,9 +35,10 @@ def print_color_guess(guess, clue):
     print()
 
 
-def filter_secrets(guess, clue, possible_secrets):
+def filter_secrets(guess, clue, possible_secrets, tuples=False):
     remaining_solutions = []
-    for possible_secret in possible_secrets:
+    for possible_secret_item in possible_secrets:
+        possible_secret = possible_secret_item[0] if tuples else possible_secret_item
         valid = True
         for index, element in enumerate(clue):
             #check greens
@@ -57,7 +58,7 @@ def filter_secrets(guess, clue, possible_secrets):
 
         #check yellows
         if valid and generate_clue(possible_secret, guess) == clue:
-            remaining_solutions.append(possible_secret)
+            remaining_solutions.append(possible_secret_item)
 
     return remaining_solutions
 

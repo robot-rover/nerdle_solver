@@ -52,26 +52,26 @@ class TestEntropy(unittest.TestCase):
 
         entropies_tup = expected_entropyv(clues, eqs, eqs.shape[0])
         entropies_act = [entropy for eq, entropy in entropies_tup]
-        np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyv")
+        np.testing.assert_equal(entropies_act, entropies_exp, "Testing expected_entropyv")
 
     def test_gpu(self):
         eqs = eqs_to_array(TestEntropy.eqs)
-        packed_eqs = pack_array(eqs, ord=15, dtype=np.uint64)
-        clues = np.zeros((eqs.shape[0], eqs.shape[0]), dtype=np.uint16)
+        entropies = []
         for guess_idx in range(eqs.shape[0]):
-            clues[guess_idx,:] = pack_array(generate_cluev(eqs, eqs[guess_idx]))
-        entropies_exp = expected_entropyv(clues, packed_eqs, eqs.shape[0])
+            clues = pack_array(generate_cluev(eqs, eqs[guess_idx]))
+            entropy = expected_entropy(clues, eqs.shape[0])
+            entropies.append(entropy)
 
         entropies_act = generate_entropies(eqs, eqs, progress=False, gpu_sorted=False, pool=TestEntropy.pool)
-        np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyg")
+        np.testing.assert_equal(entropies_act, entropies, "Testing expected_entropyg")
 
     def test_gpu_sort(self):
         eqs = eqs_to_array(TestEntropy.eqs)
-        packed_eqs = pack_array(eqs, ord=15, dtype=np.uint64)
-        clues = np.zeros((eqs.shape[0], eqs.shape[0]), dtype=np.uint16)
+        entropies = []
         for guess_idx in range(eqs.shape[0]):
-            clues[guess_idx,:] = pack_array(generate_cluev(eqs, eqs[guess_idx]))
-        entropies_exp = expected_entropyv(clues, packed_eqs, eqs.shape[0])
+            clues = pack_array(generate_cluev(eqs, eqs[guess_idx]))
+            entropy = expected_entropy(clues, eqs.shape[0])
+            entropies.append(entropy)
 
         entropies_act = generate_entropies(eqs, eqs, progress=False, gpu_sorted=True, pool=TestEntropy.pool)
-        np.testing.assert_equal(entropies_act, entropies_exp, "Testing expectend_entropyg")
+        np.testing.assert_equal(entropies_act, entropies, "Testing expected_entropyg_sort")
