@@ -94,8 +94,9 @@ class AutoNerdlePlayer:
             secret_array = SOL_ARRAY
             with PythonCluePool(((1000,secret_array.shape[0]),)) as pool:
                 entropies = generate_entropies(guess_array, secret_array, progress=True, pool=pool)
-            best_packed = max(entropies, key=lambda tup: tup[1])[0]
-            best = array_to_eq(unpack_array(np.array(best_packed, dtype=np.uint64), ord=15))
+            print(entropies[8:16])
+            best_idx = np.argmax(entropies)
+            best = COM_LIST[best_idx]
             with open(cache_path, 'w') as cache_file:
                 print(best, file=cache_file)
             return best

@@ -73,7 +73,7 @@ def _generate_entropies_gpu(guess_array, secret_array, *args, batch_size, in_dic
                 generator = ((packed_eq, entropy) for packed_eq, entropy in zip(guess_packed[chunk_begin:chunk_end], entropy_array))
                 entropies.update(generator)
             else:
-                entropies[chunk_begin:chunk_end] = entropy_array
+                entropies[chunk_begin:chunk_end] = entropy_array[:chunk_end-chunk_begin]
     return entropies
 
 def generate_entropies(guess_array, secret_array, *args, batch_size=1000, gpu_sorted=True, progress=False, in_dict=False, pool=None, guess_packed=None):
