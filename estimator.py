@@ -35,11 +35,24 @@ if __name__ == "__main__":
     x_draw = np.linspace(bins[0], bins[-1], 100)
     y_draw = regression[1] * np.log(x_draw) + regression[0]
 
-    plt.title("Remaining Uncertainty vs Guesses Required")
-    plt.ylabel("# Guesses left to Win")
-    plt.xlabel("Uncertainty (bits)")
-    plt.hist(bins[:-1], bins, weights=estimator, edgecolor='k', label='Binned')
-    plt.scatter(data_unique[:,0], data_unique[:,1], c='orange', marker='.', label='Raw')
-    plt.plot(x_draw, y_draw, c='r', label='Fit')
-    plt.legend()
+    f, axs = plt.subplots(3,1, sharex='col')
+    f.suptitle("Remaining Uncertainty")
+
+    for i in range(3):
+        axs[i].set_title(f'{i+1} Guesses Remaining')
+        axs[i].set_ylabel("Count")
+        guess_data = data[data[:,1] == i+1,0]
+        axs[i].hist(guess_data, bins=NUM_BINS, edgecolor='k')
+        # axs[0].scatter(data_unique[:,0], data_unique[:,1], c='r', marker='.', label='Raw')
+    axs[2].set_xlabel("Uncertainty (bits)")
+
+    f, ax = plt.subplots()
+    ax.set_ylabel("# Guesses left to Win")
+    ax.set_xlabel("Uncertainty (bits)")
+    ax.set_title("Expected Guesses Remaining given Uncertainty")
+    ax.hist(bins[:-1], bins, weights=estimator, edgecolor='k', label='Binned')
+    ax.plot(x_draw, y_draw, c='r', label='Fit')
+    ax.legend()
+
+    plt.tight_layout()
     plt.show()
