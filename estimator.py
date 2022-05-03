@@ -37,6 +37,7 @@ if __name__ == "__main__":
 
     f, axs = plt.subplots(3,1, sharex='col')
     f.suptitle("Remaining Uncertainty")
+    f.tight_layout()
 
     for i in range(3):
         axs[i].set_title(f'{i+1} Guesses Remaining')
@@ -53,6 +54,6 @@ if __name__ == "__main__":
     ax.hist(bins[:-1], bins, weights=estimator, edgecolor='k', label='Binned')
     ax.plot(x_draw, y_draw, c='r', label='Fit')
     ax.legend()
+    f.tight_layout()
 
-    plt.tight_layout()
     plt.show()
