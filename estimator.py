@@ -37,15 +37,16 @@ if __name__ == "__main__":
 
     f, axs = plt.subplots(3,1, sharex='col')
     f.suptitle("Remaining Uncertainty")
-    f.tight_layout()
 
     for i in range(3):
-        axs[i].set_title(f'{i+1} Guesses Remaining')
+        axs[i].set_title(f'{i+1} Guess{"es" if i>0 else ""} Remaining')
         axs[i].set_ylabel("Count")
         guess_data = data[data[:,1] == i+1,0]
         axs[i].hist(guess_data, bins=NUM_BINS, edgecolor='k')
         # axs[0].scatter(data_unique[:,0], data_unique[:,1], c='r', marker='.', label='Raw')
     axs[2].set_xlabel("Uncertainty (bits)")
+    f.tight_layout()
+    f.savefig('guesses.png')
 
     f, ax = plt.subplots()
     ax.set_ylabel("# Guesses left to Win")
@@ -55,5 +56,6 @@ if __name__ == "__main__":
     ax.plot(x_draw, y_draw, c='r', label='Fit')
     ax.legend()
     f.tight_layout()
+    f.savefig('estimator.png')
 
     plt.show()

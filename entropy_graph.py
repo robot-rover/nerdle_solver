@@ -34,7 +34,7 @@ for idx, move in enumerate(moves):
 
     uhist, ubins = np.histogram(move_data[:,1], bins=ibins, density=True)
     axs[0,idx].hist(ubins[:-1], ubins, weights=uhist*(ubins[1]-ubins[0]), edgecolor='k')
-    axs[0,idx].set_title(f'Guess {idx}: Initial Uncertainty')
+    axs[0,idx].set_title(f'Guess {idx+1}: Initial Uncertainty')
     axs[0,idx].set_xlabel("Entropy (bits)")
     axs[0,idx].set_ylabel("Probability")
     axs[0,idx].tick_params(labelbottom=True)
@@ -46,6 +46,7 @@ for idx, move in enumerate(moves):
 
 
 f.tight_layout()
+f.savefig('entropy.png')
 plt.show()
 
 with open('entropy_stats.csv', 'w') as file:
