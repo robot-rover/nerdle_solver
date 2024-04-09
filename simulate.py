@@ -17,8 +17,8 @@ PARALLEL = True
 NAME = 'estimator'
 SHOW_BAR = True
 SAVE_ESTIMATOR = False
-SAVE_ENTROPY = True
-DEBUG=False
+SAVE_ENTROPY = False
+DEBUG = False
 
 estimator = []
 entropy = []
@@ -33,7 +33,7 @@ def get_pool():
     return _TLS.pool
 
 def do_iter(solution):
-    game = NerdleGame(PLAYER(pool=get_pool(), debug=DEBUG), solution)
+    game = NerdleGame(PLAYER(pool=get_pool(), debug=DEBUG), solution, debug=DEBUG)
     game.start_game()
     if SAVE_ESTIMATOR:
         for tup in enumerate(reversed(game.player.estimator),1):

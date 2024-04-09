@@ -17,35 +17,35 @@ if __name__ == "__main__":
     # print(data.shape)
     # print(data[:10])
 
-    counts, bins = np.histogram(data[:,0], bins=NUM_BINS)
+    uncertainty = -np.log2(1/data[:,0])
+    counts, bins = np.histogram(uncertainty, bins=NUM_BINS)
     counts[counts == 0] += 1 # Prevent NaN on zero count divisions
-    weights, _ = np.histogram(data[:,0], weights=data[:,1], bins=bins)
+    weights, _ = np.histogram(uncertainty, weights=data[:,1], bins=bins)
 
     estimator = weights / counts
 
     reg_pnts = np.stack((bins[:-1], estimator), axis=-1)
     reg_pnts = reg_pnts[reg_pnts[:,1] != 0]
-    regression = np.zeros((3,))
-    regression[:2] = polyfit(np.log(reg_pnts[:,0]), reg_pnts[:,1], 1)
-    regression[2] = np.exp((1-regression[0])/regression[1])
+    regression = polyfit(np.sqrt(reg_pnts[:,0]), reg_pnts[:,1], 1)
     np.save(ESTIMATOR_PATH, regression, allow_pickle=False)
     print("Regression:", regression)
-    print(f'y = {regression[1]} * log(x) + {regression[0]}')
+    print(f'y = {regression[1]} * sqrt(x) + {regression[0]}')
 
     x_draw = np.linspace(bins[0], bins[-1], 100)
-    y_draw = regression[1] * np.log(x_draw) + regression[0]
+    y_draw = regression[1] * np.sqrt(x_draw) + regression[0]
 
-    f, axs = plt.subplots(3,1, sharex='col')
+    f, axs = plt.subplots(3,1, sharex='col', figsize=[6.4,6.4])
     f.suptitle("Remaining Uncertainty")
-    f.tight_layout()
 
     for i in range(3):
         axs[i].set_title(f'{i+1} Guesses Remaining')
         axs[i].set_ylabel("Count")
         guess_data = data[data[:,1] == i+1,0]
-        axs[i].hist(guess_data, bins=NUM_BINS, edgecolor='k')
+        unc_data = -np.log2(1/guess_data)
+        axs[i].hist(unc_data, bins=NUM_BINS, edgecolor='k')
         # axs[0].scatter(data_unique[:,0], data_unique[:,1], c='r', marker='.', label='Raw')
     axs[2].set_xlabel("Uncertainty (bits)")
+    f.tight_layout()
 
     f, ax = plt.subplots()
     ax.set_ylabel("# Guesses left to Win")

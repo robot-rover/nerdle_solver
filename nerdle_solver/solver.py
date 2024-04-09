@@ -49,14 +49,15 @@ class AutoNerdlePlayer:
             # for secret, index in self.possible_secrets:
             #     entropies[index] += 1/len(self.possible_secrets)
             # best_idx = np.argmax(entropies)
+            # guess = COM_LIST[best_idx]
 
             # Estimator Heuristic
             current_uncertainty = -math.log2(1/len(self.possible_secrets))
             sol_indexes = np.array([index for eq, index in self.possible_secrets])
             p_sol = np.zeros_like(entropies)
             p_sol[sol_indexes] += 1/len(self.possible_secrets)
-            x_coord = np.maximum(current_uncertainty - entropies, ESTIMATOR_PARAMS[2])
-            e_score = p_sol * 1 + (1 - p_sol) * (ESTIMATOR_PARAMS[1] * np.log(x_coord) + ESTIMATOR_PARAMS[0])
+            x_coord = np.maximum(current_uncertainty - entropies, 0)
+            e_score = p_sol * 1 + (1 - p_sol) * (ESTIMATOR_PARAMS[1] * np.sqrt(x_coord) + ESTIMATOR_PARAMS[0] + 1)
             best_idx = np.argmin(e_score)
 
             guess = COM_LIST[best_idx]
